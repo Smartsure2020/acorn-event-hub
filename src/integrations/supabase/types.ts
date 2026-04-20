@@ -14,7 +14,263 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      milestones: {
+        Row: {
+          actual_date: string | null
+          code: string
+          created_at: string
+          id: string
+          name: string
+          phase: string | null
+          project_id: string
+          sign_off: string | null
+          sort_order: number
+          status: Database["public"]["Enums"]["milestone_status"]
+          target_date: string | null
+          target_week: number | null
+          updated_at: string
+        }
+        Insert: {
+          actual_date?: string | null
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          phase?: string | null
+          project_id: string
+          sign_off?: string | null
+          sort_order?: number
+          status?: Database["public"]["Enums"]["milestone_status"]
+          target_date?: string | null
+          target_week?: number | null
+          updated_at?: string
+        }
+        Update: {
+          actual_date?: string | null
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          phase?: string | null
+          project_id?: string
+          sign_off?: string | null
+          sort_order?: number
+          status?: Database["public"]["Enums"]["milestone_status"]
+          target_date?: string | null
+          target_week?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "milestones_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          budget_zar: number | null
+          client: string | null
+          created_at: string
+          event_date: string | null
+          id: string
+          location: string | null
+          name: string
+          notes: string | null
+          phase: Database["public"]["Enums"]["project_phase"]
+          pm: string | null
+          status: Database["public"]["Enums"]["project_status"]
+          type: Database["public"]["Enums"]["project_type"]
+          updated_at: string
+        }
+        Insert: {
+          budget_zar?: number | null
+          client?: string | null
+          created_at?: string
+          event_date?: string | null
+          id?: string
+          location?: string | null
+          name: string
+          notes?: string | null
+          phase?: Database["public"]["Enums"]["project_phase"]
+          pm?: string | null
+          status?: Database["public"]["Enums"]["project_status"]
+          type?: Database["public"]["Enums"]["project_type"]
+          updated_at?: string
+        }
+        Update: {
+          budget_zar?: number | null
+          client?: string | null
+          created_at?: string
+          event_date?: string | null
+          id?: string
+          location?: string | null
+          name?: string
+          notes?: string | null
+          phase?: Database["public"]["Enums"]["project_phase"]
+          pm?: string | null
+          status?: Database["public"]["Enums"]["project_status"]
+          type?: Database["public"]["Enums"]["project_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      risks: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          impact: Database["public"]["Enums"]["risk_level"]
+          likelihood: Database["public"]["Enums"]["risk_level"]
+          mitigation: string | null
+          owner: string | null
+          project_id: string
+          rating: Database["public"]["Enums"]["risk_rating"]
+          risk_number: number
+          status: Database["public"]["Enums"]["risk_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          impact?: Database["public"]["Enums"]["risk_level"]
+          likelihood?: Database["public"]["Enums"]["risk_level"]
+          mitigation?: string | null
+          owner?: string | null
+          project_id: string
+          rating?: Database["public"]["Enums"]["risk_rating"]
+          risk_number: number
+          status?: Database["public"]["Enums"]["risk_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          impact?: Database["public"]["Enums"]["risk_level"]
+          likelihood?: Database["public"]["Enums"]["risk_level"]
+          mitigation?: string | null
+          owner?: string | null
+          project_id?: string
+          rating?: Database["public"]["Enums"]["risk_rating"]
+          risk_number?: number
+          status?: Database["public"]["Enums"]["risk_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "risks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          created_at: string
+          critical_path: boolean
+          duration_days: number
+          id: string
+          is_milestone: boolean
+          name: string
+          owner: string | null
+          phase: Database["public"]["Enums"]["project_phase"]
+          priority: Database["public"]["Enums"]["task_priority"]
+          project_id: string
+          sort_order: number
+          start_day: number
+          status: Database["public"]["Enums"]["task_status"]
+          task_code: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          critical_path?: boolean
+          duration_days?: number
+          id?: string
+          is_milestone?: boolean
+          name: string
+          owner?: string | null
+          phase: Database["public"]["Enums"]["project_phase"]
+          priority?: Database["public"]["Enums"]["task_priority"]
+          project_id: string
+          sort_order?: number
+          start_day?: number
+          status?: Database["public"]["Enums"]["task_status"]
+          task_code: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          critical_path?: boolean
+          duration_days?: number
+          id?: string
+          is_milestone?: boolean
+          name?: string
+          owner?: string | null
+          phase?: Database["public"]["Enums"]["project_phase"]
+          priority?: Database["public"]["Enums"]["task_priority"]
+          project_id?: string
+          sort_order?: number
+          start_day?: number
+          status?: Database["public"]["Enums"]["task_status"]
+          task_code?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_members: {
+        Row: {
+          contact: string | null
+          created_at: string
+          id: string
+          name: string
+          project_id: string | null
+          role: Database["public"]["Enums"]["team_role"]
+          updated_at: string
+        }
+        Insert: {
+          contact?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          project_id?: string | null
+          role?: Database["public"]["Enums"]["team_role"]
+          updated_at?: string
+        }
+        Update: {
+          contact?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          project_id?: string | null
+          role?: Database["public"]["Enums"]["team_role"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +279,28 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      milestone_status: "Not Started" | "Complete" | "At Risk"
+      project_phase:
+        | "Initiation"
+        | "Planning"
+        | "Creative"
+        | "Procurement"
+        | "Execution Prep"
+        | "Activation"
+        | "Post-Activation"
+      project_status:
+        | "Planning"
+        | "Active"
+        | "On Hold"
+        | "Complete"
+        | "Cancelled"
+      project_type: "On-ground" | "Sponsorship" | "Both"
+      risk_level: "Low" | "Medium" | "High"
+      risk_rating: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
+      risk_status: "Open" | "Mitigated" | "Closed"
+      task_priority: "High" | "Medium" | "Low"
+      task_status: "Not Started" | "In Progress" | "Complete" | "Blocked"
+      team_role: "PM" | "Marketing" | "Executor" | "Client" | "Other"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +427,31 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      milestone_status: ["Not Started", "Complete", "At Risk"],
+      project_phase: [
+        "Initiation",
+        "Planning",
+        "Creative",
+        "Procurement",
+        "Execution Prep",
+        "Activation",
+        "Post-Activation",
+      ],
+      project_status: [
+        "Planning",
+        "Active",
+        "On Hold",
+        "Complete",
+        "Cancelled",
+      ],
+      project_type: ["On-ground", "Sponsorship", "Both"],
+      risk_level: ["Low", "Medium", "High"],
+      risk_rating: ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+      risk_status: ["Open", "Mitigated", "Closed"],
+      task_priority: ["High", "Medium", "Low"],
+      task_status: ["Not Started", "In Progress", "Complete", "Blocked"],
+      team_role: ["PM", "Marketing", "Executor", "Client", "Other"],
+    },
   },
 } as const
