@@ -4,6 +4,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 import { SignInPage } from "@/components/SignInPage";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 import appCss from "../styles.css?url";
 
@@ -68,8 +70,35 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const [hashProcessed, setHashProcessed] = useState(false);
+  const [hashType, setHashType] = useState<string | null>(null);
 
-  if (loading) {
+  useEffect(() => {
+    if (typeof window === "undefined") { setHashProcessed(true); return; }
+
+    const hash = window.location.hash;
+    if (!hash) { setHashProcessed(true); return; }
+
+    const params = new URLSearchParams(hash.replace("#", ""));
+    const type = params.get("type");
+    const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+
+    if (accessToken && refreshToken) {
+      setHashType(type);
+      supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      }).then(() => {
+        window.history.replaceState(null, "", window.location.pathname);
+        setHashProcessed(true);
+      });
+    } else {
+      setHashProcessed(true);
+    }
+  }, []);
+
+  if (loading || !hashProcessed) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -77,9 +106,101 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
+  if (hashType === "recovery" || hashType === "invite") {
+    return <SetPasswordPage />;
+  }
+
   if (!user) return <SignInPage />;
 
   return <>{children}</>;
+}
+
+function SetPasswordPage() {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
+    if (password !== confirm) { setError("Passwords do not match."); return; }
+
+    setLoading(true);
+    const { error: err } = await supabase.auth.updateUser({ password });
+    setLoading(false);
+
+    if (err) {
+      setError(err.message);
+    } else {
+      setDone(true);
+      setTimeout(() => { window.location.href = "/"; }, 1500);
+    }
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+      <div className="w-full max-w-md space-y-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-foreground">Set your password</h1>
+          {user?.email && (
+            <p className="text-sm text-muted-foreground mt-1">for {user.email}</p>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-border bg-card p-6 shadow-xl">
+          {done ? (
+            <div className="text-center py-4 space-y-2">
+              <p className="text-green-400 font-semibold">✓ Password set successfully!</p>
+              <p className="text-sm text-muted-foreground">Redirecting you now…</p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">New password</label>
+                <input
+                  type="password"
+                  placeholder="Min. 8 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                  required
+                  autoComplete="new-password"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Confirm password</label>
+                <input
+                  type="password"
+                  placeholder="Repeat password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                  required
+                  autoComplete="new-password"
+                />
+              </div>
+              {error && (
+                <div className="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2 text-sm text-destructive">
+                  {error}
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {loading ? "Saving…" : "Set password & sign in"}
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ThemedToaster() {
