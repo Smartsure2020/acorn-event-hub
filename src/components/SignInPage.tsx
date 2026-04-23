@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Sprout, Eye, EyeOff, Lock, Mail, Shield } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,17 +17,9 @@ export function SignInPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
-
-    // Org domain restriction — only @acornactivations.co.za and whitelisted domains
-    const allowedDomains = ["acornactivations.co.za", "smartsure.co.za"];
-    const domain = email.split("@")[1]?.toLowerCase();
-    if (!domain || !allowedDomains.includes(domain)) {
-      setError("Access restricted to Acorn Activations organisation accounts.");
-      return;
-    }
 
     setLoading(true);
     const { error: err } = await signIn(email, password);
