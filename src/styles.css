@@ -51,66 +51,50 @@
   --color-milestone: var(--milestone);
 }
 
-/*
- * Acorn Activations design tokens (dark theme — no light mode).
- * Brand:
- *   bg          #0F1A2E  → dark navy
- *   primary     #00B4D8  → cyan
- *   secondary   #F4A300  → amber
- *   text        #F0F4F8  → off-white
- *   card        #1A2E44
- *   danger      #C0392B
- *   success     #217346
- */
-
-:root {
+/* ============================================================
+   DARK MODE (default)
+   Brand: navy bg, cyan primary, amber secondary
+   ============================================================ */
+:root,
+html.dark {
+  color-scheme: dark;
   --radius: 0.625rem;
 
-  /* Surfaces */
-  --background: oklch(0.207 0.043 254.5);          /* #0F1A2E */
-  --foreground: oklch(0.961 0.008 247);            /* #F0F4F8 */
-  --card: oklch(0.272 0.043 254);                  /* #1A2E44 */
+  --background: oklch(0.207 0.043 254.5);
+  --foreground: oklch(0.961 0.008 247);
+  --card: oklch(0.272 0.043 254);
   --card-foreground: oklch(0.961 0.008 247);
   --popover: oklch(0.272 0.043 254);
   --popover-foreground: oklch(0.961 0.008 247);
 
-  /* Primary — cyan */
-  --primary: oklch(0.728 0.13 220);                /* #00B4D8 */
+  --primary: oklch(0.728 0.13 220);
   --primary-foreground: oklch(0.18 0.04 254);
 
-  /* Secondary — amber */
-  --secondary: oklch(0.78 0.155 75);               /* #F4A300 */
+  --secondary: oklch(0.78 0.155 75);
   --secondary-foreground: oklch(0.18 0.04 254);
 
-  /* Muted / accent */
   --muted: oklch(0.32 0.04 254);
   --muted-foreground: oklch(0.72 0.025 250);
   --accent: oklch(0.36 0.045 254);
   --accent-foreground: oklch(0.961 0.008 247);
 
-  /* Status */
-  --destructive: oklch(0.575 0.18 28);             /* #C0392B */
+  --destructive: oklch(0.575 0.18 28);
   --destructive-foreground: oklch(0.98 0.01 250);
-  --success: oklch(0.5 0.12 150);                  /* #217346 */
+  --success: oklch(0.5 0.12 150);
   --success-foreground: oklch(0.98 0.01 250);
-  --warning: oklch(0.78 0.155 75);                 /* amber */
+  --warning: oklch(0.78 0.155 75);
   --warning-foreground: oklch(0.18 0.04 254);
   --info: oklch(0.728 0.13 220);
   --info-foreground: oklch(0.18 0.04 254);
 
-  /* Borders / inputs */
   --border: oklch(0.36 0.04 254);
   --input: oklch(0.32 0.04 254);
   --ring: oklch(0.728 0.13 220);
 
-  /* Table stripe */
   --row-stripe: oklch(0.245 0.04 254);
-
-  /* Gantt */
   --cp: oklch(0.575 0.18 28);
   --milestone: oklch(0.78 0.155 75);
 
-  /* Sidebar */
   --sidebar: oklch(0.18 0.04 254);
   --sidebar-foreground: oklch(0.92 0.012 247);
   --sidebar-primary: oklch(0.728 0.13 220);
@@ -121,9 +105,56 @@
   --sidebar-ring: oklch(0.728 0.13 220);
 }
 
-/* Force dark — no light mode toggle */
-html {
-  color-scheme: dark;
+/* ============================================================
+   LIGHT MODE
+   Clean white with cyan primary, same amber secondary
+   ============================================================ */
+html.light {
+  color-scheme: light;
+
+  --background: oklch(0.98 0.005 247);
+  --foreground: oklch(0.18 0.04 254);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.04 254);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.04 254);
+
+  --primary: oklch(0.62 0.13 220);
+  --primary-foreground: oklch(0.98 0.005 247);
+
+  --secondary: oklch(0.72 0.155 75);
+  --secondary-foreground: oklch(0.98 0.005 247);
+
+  --muted: oklch(0.93 0.01 247);
+  --muted-foreground: oklch(0.48 0.03 254);
+  --accent: oklch(0.93 0.015 220);
+  --accent-foreground: oklch(0.18 0.04 254);
+
+  --destructive: oklch(0.52 0.18 28);
+  --destructive-foreground: oklch(0.98 0.005 247);
+  --success: oklch(0.46 0.12 150);
+  --success-foreground: oklch(0.98 0.005 247);
+  --warning: oklch(0.72 0.155 75);
+  --warning-foreground: oklch(0.98 0.005 247);
+  --info: oklch(0.62 0.13 220);
+  --info-foreground: oklch(0.98 0.005 247);
+
+  --border: oklch(0.88 0.012 247);
+  --input: oklch(0.92 0.008 247);
+  --ring: oklch(0.62 0.13 220);
+
+  --row-stripe: oklch(0.96 0.005 247);
+  --cp: oklch(0.52 0.18 28);
+  --milestone: oklch(0.72 0.155 75);
+
+  --sidebar: oklch(0.96 0.008 247);
+  --sidebar-foreground: oklch(0.18 0.04 254);
+  --sidebar-primary: oklch(0.62 0.13 220);
+  --sidebar-primary-foreground: oklch(0.98 0.005 247);
+  --sidebar-accent: oklch(0.9 0.015 220);
+  --sidebar-accent-foreground: oklch(0.18 0.04 254);
+  --sidebar-border: oklch(0.88 0.012 247);
+  --sidebar-ring: oklch(0.62 0.13 220);
 }
 
 @layer base {
@@ -137,7 +168,6 @@ html {
   }
 }
 
-/* Striped tables utility */
 @utility table-striped {
   & tbody tr:nth-child(odd) {
     background-color: var(--color-row-stripe);

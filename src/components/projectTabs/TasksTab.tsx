@@ -21,8 +21,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PriorityBadge, TaskStatusBadge, CPBadge } from "@/components/StatusBadges";
 import { PHASES } from "@/lib/templates";
 import { dayToWeek } from "@/lib/format";
-import { Plus } from "lucide-react";
+import { Plus, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { TaskDetailDrawer } from "@/components/TaskDetailDrawer";
 
 const ALL = "__all";
 
@@ -34,6 +35,7 @@ export function TasksTab({ projectId }: { projectId: string }) {
   const [owner, setOwner] = useState<string>(ALL);
   const [priority, setPriority] = useState<string>(ALL);
   const [status, setStatus] = useState<string>(ALL);
+  const [selectedTask, setSelectedTask] = useState<TaskRow | null>(null);
 
   const owners = useMemo(() => {
     const set = new Set<string>();
@@ -59,52 +61,68 @@ export function TasksTab({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="mt-4 space-y-4">
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <FilterSelect label="Phase" value={phase} onValue={setPhase} options={PHASES} />
-        <FilterSelect label="Owner" value={owner} onValue={setOwner} options={owners} />
-        <FilterSelect label="Priority" value={priority} onValue={setPriority} options={["High", "Medium", "Low"]} />
-        <FilterSelect label="Status" value={status} onValue={setStatus} options={["Not Started", "In Progress", "Complete", "Blocked"]} />
-        <div className="flex-1" />
-        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => toast.info("Add task — coming soon")}>
-          <Plus className="h-3.5 w-3.5" /> Add task
-        </Button>
+    <>
+      <div className="mt-4 space-y-4">
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-2">
+          <FilterSelect label="Phase" value={phase} onValue={setPhase} options={PHASES} />
+          <FilterSelect label="Owner" value={owner} onValue={setOwner} options={owners} />
+          <FilterSelect label="Priority" value={priority} onValue={setPriority} options={["High", "Medium", "Low"]} />
+          <FilterSelect label="Status" value={status} onValue={setStatus} options={["Not Started", "In Progress", "Complete", "Blocked"]} />
+          <div className="flex-1" />
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => toast.info("Add task — coming soon")}>
+            <Plus className="h-3.5 w-3.5" /> Add task
+          </Button>
+        </div>
+
+        <Card>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table className="table-striped">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[60px]">ID</TableHead>
+                    <TableHead>Task</TableHead>
+                    <TableHead>Phase</TableHead>
+                    <TableHead>Owner</TableHead>
+                    <TableHead>Start</TableHead>
+                    <TableHead>Duration</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>CP</TableHead>
+                    <TableHead className="w-[40px]" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">
+                        No tasks match the selected filters.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filtered.map((t) => (
+                      <TaskRowItem
+                        key={t.id}
+                        task={t}
+                        onChangeStatus={(s) => updateStatus.mutate({ id: t.id, status: s })}
+                        onOpen={() => setSelectedTask(t)}
+                      />
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table className="table-striped">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[60px]">ID</TableHead>
-                  <TableHead>Task</TableHead>
-                  <TableHead>Phase</TableHead>
-                  <TableHead>Owner</TableHead>
-                  <TableHead>Start</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>CP</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
-                      No tasks match the selected filters.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filtered.map((t) => <TaskRowItem key={t.id} task={t} onChangeStatus={(s) => updateStatus.mutate({ id: t.id, status: s })} />)
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+      <TaskDetailDrawer
+        task={selectedTask}
+        open={!!selectedTask}
+        onClose={() => setSelectedTask(null)}
+      />
+    </>
   );
 }
 
@@ -127,12 +145,14 @@ function FilterSelect({
 function TaskRowItem({
   task,
   onChangeStatus,
+  onOpen,
 }: {
   task: TaskRow;
   onChangeStatus: (s: TaskRow["status"]) => void;
+  onOpen: () => void;
 }) {
   return (
-    <TableRow>
+    <TableRow className="group cursor-pointer hover:bg-muted/40" onClick={onOpen}>
       <TableCell className="font-mono text-xs text-muted-foreground">{task.task_code}</TableCell>
       <TableCell className="font-medium">{task.name}</TableCell>
       <TableCell className="text-sm text-muted-foreground">{task.phase}</TableCell>
@@ -140,7 +160,7 @@ function TaskRowItem({
       <TableCell className="text-sm tabular-nums">W{dayToWeek(task.start_day)}</TableCell>
       <TableCell className="text-sm tabular-nums">{task.duration_days}d</TableCell>
       <TableCell><PriorityBadge value={task.priority} /></TableCell>
-      <TableCell>
+      <TableCell onClick={(e) => e.stopPropagation()}>
         <Select value={task.status} onValueChange={(v) => onChangeStatus(v as TaskRow["status"])}>
           <SelectTrigger className="h-8 w-[140px] border-transparent bg-transparent px-2 hover:bg-muted/50">
             <TaskStatusBadge value={task.status} />
@@ -153,6 +173,9 @@ function TaskRowItem({
         </Select>
       </TableCell>
       <TableCell>{task.critical_path && <CPBadge />}</TableCell>
+      <TableCell>
+        <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+      </TableCell>
     </TableRow>
   );
 }

@@ -1,0 +1,3161 @@
+From c17564da59b83a9ef6f2ab56c86ee6c2142bf05f Mon Sep 17 00:00:00 2001
+From: Acorn Build <build@acorn>
+Date: Thu, 23 Apr 2026 18:18:42 +0000
+Subject: [PATCH] feat: auth, roles, dark/light mode, task drawer, marketing
+ tab, AI budget, audit trail
+
+- AuthContext: org-gated sign-in (acornactivations.co.za), admin/manager/viewer roles
+- ThemeContext: dark/light toggle with localStorage persistence
+- SignInPage: domain-restricted login screen
+- TaskDetailDrawer: comments, document uploads, manager sign-off per task
+- TasksTab: clickable rows opening detail drawer
+- MarketingTab: Howler ticket tracking + flyer distribution per channel
+- AIBudgetTab: Claude-powered budget advisor with follow-up chat
+- AuditTrailTab: filterable activity log
+- AppShell: theme toggle + user role badge + sign-out menu
+- AppSidebar: admin-only nav section
+- styles.css: full light mode token set
+- SQL schema: task_comments, task_documents, task_signoffs, audit_log, marketing, flyers
+---
+ package-lock.json                            | 257 ++++++++++--
+ src/components/AppShell.tsx                  |  69 ++++
+ src/components/AppSidebar.tsx                |  62 ++-
+ src/components/SignInPage.tsx                | 148 +++++++
+ src/components/TaskDetailDrawer.tsx          | 340 ++++++++++++++++
+ src/components/projectTabs/AIBudgetTab.tsx   | 331 ++++++++++++++++
+ src/components/projectTabs/AuditTrailTab.tsx | 158 ++++++++
+ src/components/projectTabs/MarketingTab.tsx  | 386 +++++++++++++++++++
+ src/components/projectTabs/TasksTab.tsx      | 115 +++---
+ src/contexts/AuthContext.tsx                 |  96 +++++
+ src/contexts/ThemeContext.tsx                |  40 ++
+ src/hooks/useAuditLog.ts                     |  46 +++
+ src/routes/__root.tsx                        |  36 +-
+ src/routes/project.$id.tsx                   |  15 +
+ src/styles.css                               | 100 +++--
+ 15 files changed, 2057 insertions(+), 142 deletions(-)
+ create mode 100644 src/components/SignInPage.tsx
+ create mode 100644 src/components/TaskDetailDrawer.tsx
+ create mode 100644 src/components/projectTabs/AIBudgetTab.tsx
+ create mode 100644 src/components/projectTabs/AuditTrailTab.tsx
+ create mode 100644 src/components/projectTabs/MarketingTab.tsx
+ create mode 100644 src/contexts/AuthContext.tsx
+ create mode 100644 src/contexts/ThemeContext.tsx
+ create mode 100644 src/hooks/useAuditLog.ts
+
+diff --git a/package-lock.json b/package-lock.json
+index 0b0ca41..7e012b1 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -34,8 +34,9 @@
+         "@radix-ui/react-toggle": "^1.1.10",
+         "@radix-ui/react-toggle-group": "^1.1.11",
+         "@radix-ui/react-tooltip": "^1.2.8",
++        "@supabase/supabase-js": "^2.104.0",
+         "@tailwindcss/vite": "^4.2.1",
+-        "@tanstack/react-query": "^5.83.0",
++        "@tanstack/react-query": "^5.99.2",
+         "@tanstack/react-router": "^1.168.0",
+         "@tanstack/react-start": "^1.167.14",
+         "@tanstack/router-plugin": "^1.167.10",
+@@ -62,7 +63,7 @@
+       },
+       "devDependencies": {
+         "@eslint/js": "^9.32.0",
+-        "@lovable.dev/vite-tanstack-config": "^1.2.0",
++        "@lovable.dev/vite-tanstack-config": "^1.4.0",
+         "@types/node": "^22.16.5",
+         "@types/react": "^19.2.0",
+         "@types/react-dom": "^19.2.0",
+@@ -120,7 +121,6 @@
+       "resolved": "https://registry.npmjs.org/@babel/core/-/core-7.29.0.tgz",
+       "integrity": "sha512-CGOfOJqWjg2qW/Mb6zNsDm+u5vFQ8DxXfbM09z69p5Z6+mE1ikP2jUXw+j42Pf1XTYED2Rni5f95npYeuwMDQA==",
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "@babel/code-frame": "^7.29.0",
+         "@babel/generator": "^7.29.0",
+@@ -426,7 +426,6 @@
+       "resolved": "https://registry.npmjs.org/@cloudflare/vite-plugin/-/vite-plugin-1.32.2.tgz",
+       "integrity": "sha512-sEI/jusfDvzHIL4oiBBV5iUxAXfTRvguecIDWQ/AxBgEjGO1ZslHOEy4rlxfgqrdRWtq0TM9m3oC+hT32hajEg==",
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "@cloudflare/unenv-preset": "2.16.0",
+         "miniflare": "4.20260410.0",
+@@ -1768,13 +1767,29 @@
+         "@jridgewell/sourcemap-codec": "^1.4.14"
+       }
+     },
++    "node_modules/@lovable.dev/vite-plugin-hmr-gate": {
++      "version": "1.0.0",
++      "resolved": "https://registry.npmjs.org/@lovable.dev/vite-plugin-hmr-gate/-/vite-plugin-hmr-gate-1.0.0.tgz",
++      "integrity": "sha512-gWpiqRKwyE68ul7xlryGmoMJC3jJEWg/Pl80/Dl8h1Ajfw6VB3Quq8Mq17D5bAPL6NjxKlmA1g8GWJEjK2fDYg==",
++      "dev": true,
++      "license": "MIT",
++      "peerDependencies": {
++        "vite": ">=5.0.0 <8.0.0"
++      },
++      "peerDependenciesMeta": {
++        "vite": {
++          "optional": false
++        }
++      }
++    },
+     "node_modules/@lovable.dev/vite-tanstack-config": {
+-      "version": "1.2.0",
+-      "resolved": "https://registry.npmjs.org/@lovable.dev/vite-tanstack-config/-/vite-tanstack-config-1.2.0.tgz",
+-      "integrity": "sha512-vvCb3I9mCnRwg09Re1Fr7liG23kHy2luaTGkGllS1tWQOhhlTUYj8jGRCkRd7MDjxg6TxpEQdOVgiK98Rm7sMQ==",
++      "version": "1.4.0",
++      "resolved": "https://registry.npmjs.org/@lovable.dev/vite-tanstack-config/-/vite-tanstack-config-1.4.0.tgz",
++      "integrity": "sha512-OZmCj7t77kcKHEWANz7oeILdB1Y339h7cKz34SpNMxiyna+kzf8R57DZfBzMXY71A1UcOtCJYvSmr/wfDom8ag==",
+       "dev": true,
+       "license": "MIT",
+       "dependencies": {
++        "@lovable.dev/vite-plugin-hmr-gate": "^1.0.0",
+         "lovable-tagger": "1.1.13"
+       },
+       "peerDependencies": {
+@@ -3550,6 +3565,7 @@
+       "cpu": [
+         "arm"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3563,6 +3579,7 @@
+       "cpu": [
+         "arm64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3576,6 +3593,7 @@
+       "cpu": [
+         "arm64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3589,6 +3607,7 @@
+       "cpu": [
+         "x64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3602,6 +3621,7 @@
+       "cpu": [
+         "arm64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3615,6 +3635,7 @@
+       "cpu": [
+         "x64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3628,6 +3649,7 @@
+       "cpu": [
+         "arm"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3641,6 +3663,7 @@
+       "cpu": [
+         "arm"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3654,6 +3677,7 @@
+       "cpu": [
+         "arm64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3667,6 +3691,7 @@
+       "cpu": [
+         "arm64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3680,6 +3705,7 @@
+       "cpu": [
+         "loong64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3693,6 +3719,7 @@
+       "cpu": [
+         "loong64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3706,6 +3733,7 @@
+       "cpu": [
+         "ppc64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3719,6 +3747,7 @@
+       "cpu": [
+         "ppc64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3732,6 +3761,7 @@
+       "cpu": [
+         "riscv64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3745,6 +3775,7 @@
+       "cpu": [
+         "riscv64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3758,6 +3789,7 @@
+       "cpu": [
+         "s390x"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3771,6 +3803,7 @@
+       "cpu": [
+         "x64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3784,6 +3817,7 @@
+       "cpu": [
+         "x64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3797,6 +3831,7 @@
+       "cpu": [
+         "x64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3810,6 +3845,7 @@
+       "cpu": [
+         "arm64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3823,6 +3859,7 @@
+       "cpu": [
+         "arm64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3836,6 +3873,7 @@
+       "cpu": [
+         "ia32"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3849,6 +3887,7 @@
+       "cpu": [
+         "x64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3862,6 +3901,7 @@
+       "cpu": [
+         "x64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3892,6 +3932,113 @@
+       "integrity": "sha512-e7Mew686owMaPJVNNLs55PUvgz371nKgwsc4vxE49zsODpJEnxgxRo2y/OKrqueavXgZNMDVj3DdHFlaSAeU8g==",
+       "license": "MIT"
+     },
++    "node_modules/@supabase/auth-js": {
++      "version": "2.104.1",
++      "resolved": "https://registry.npmjs.org/@supabase/auth-js/-/auth-js-2.104.1.tgz",
++      "integrity": "sha512-pqFnDKekq1isqlqnzqzyJ3mzmho+o+FjfVTqhKY3PFlwj2anx3OPznO1kbo1ZEwD8zg1r4EAFf/7pplLyX0ocQ==",
++      "license": "MIT",
++      "dependencies": {
++        "tslib": "2.8.1"
++      },
++      "engines": {
++        "node": ">=20.0.0"
++      }
++    },
++    "node_modules/@supabase/functions-js": {
++      "version": "2.104.1",
++      "resolved": "https://registry.npmjs.org/@supabase/functions-js/-/functions-js-2.104.1.tgz",
++      "integrity": "sha512-JjAH4JN9rZzxh4plQnILPrQZXAG6ccoRS6z9hQAGmXpRSwJA+7CWbsDV2R82I8MROlGDsjqj1Ot/cWpTfdf6xg==",
++      "license": "MIT",
++      "dependencies": {
++        "tslib": "2.8.1"
++      },
++      "engines": {
++        "node": ">=20.0.0"
++      }
++    },
++    "node_modules/@supabase/phoenix": {
++      "version": "0.4.0",
++      "resolved": "https://registry.npmjs.org/@supabase/phoenix/-/phoenix-0.4.0.tgz",
++      "integrity": "sha512-RHSx8bHS02xwfHdAbX5Lpbo6PXbgyf7lTaXTlwtFDPwOIw64NnVRwFAXGojHhjtVYI+PEPNSWwkL90f4agN3bw==",
++      "license": "MIT"
++    },
++    "node_modules/@supabase/postgrest-js": {
++      "version": "2.104.1",
++      "resolved": "https://registry.npmjs.org/@supabase/postgrest-js/-/postgrest-js-2.104.1.tgz",
++      "integrity": "sha512-RqlLpvgXsjcc27fLyHNGm3zN0KDWXbkdTdaFtaEdX83RsTEqH7BAmshH7zoUMml5lL04naUeRjS3B81O6jZcJw==",
++      "license": "MIT",
++      "dependencies": {
++        "tslib": "2.8.1"
++      },
++      "engines": {
++        "node": ">=20.0.0"
++      }
++    },
++    "node_modules/@supabase/realtime-js": {
++      "version": "2.104.1",
++      "resolved": "https://registry.npmjs.org/@supabase/realtime-js/-/realtime-js-2.104.1.tgz",
++      "integrity": "sha512-dVJHhFB2ErBd0/2qE9G8CedCrGoAtBfL9Q4zbSMXO7b1Cpld916ljSiX21mURUqijPf1WoPQG4Bp/averUzk/g==",
++      "license": "MIT",
++      "dependencies": {
++        "@supabase/phoenix": "^0.4.0",
++        "@types/ws": "^8.18.1",
++        "tslib": "2.8.1",
++        "ws": "^8.18.2"
++      },
++      "engines": {
++        "node": ">=20.0.0"
++      }
++    },
++    "node_modules/@supabase/realtime-js/node_modules/ws": {
++      "version": "8.20.0",
++      "resolved": "https://registry.npmjs.org/ws/-/ws-8.20.0.tgz",
++      "integrity": "sha512-sAt8BhgNbzCtgGbt2OxmpuryO63ZoDk/sqaB/znQm94T4fCEsy/yV+7CdC1kJhOU9lboAEU7R3kquuycDoibVA==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=10.0.0"
++      },
++      "peerDependencies": {
++        "bufferutil": "^4.0.1",
++        "utf-8-validate": ">=5.0.2"
++      },
++      "peerDependenciesMeta": {
++        "bufferutil": {
++          "optional": true
++        },
++        "utf-8-validate": {
++          "optional": true
++        }
++      }
++    },
++    "node_modules/@supabase/storage-js": {
++      "version": "2.104.1",
++      "resolved": "https://registry.npmjs.org/@supabase/storage-js/-/storage-js-2.104.1.tgz",
++      "integrity": "sha512-2bQaLbkRshctkUVuqamwYZDEd+0cGSc9DY9sjh92DcA5hu1F/1AP8p6gxGr76sgdK9Ngi0rh+2Kdh+uC4hcnGA==",
++      "license": "MIT",
++      "dependencies": {
++        "iceberg-js": "^0.8.1",
++        "tslib": "2.8.1"
++      },
++      "engines": {
++        "node": ">=20.0.0"
++      }
++    },
++    "node_modules/@supabase/supabase-js": {
++      "version": "2.104.1",
++      "resolved": "https://registry.npmjs.org/@supabase/supabase-js/-/supabase-js-2.104.1.tgz",
++      "integrity": "sha512-E0H/CtVmaGjiAy+ieZ5ZB/1EqxXcGdaFaAc23AE5zaYfz6NtCNDcmaEdoGPYMPFH5pE6drGG6e3ljPmkFoGVxQ==",
++      "license": "MIT",
++      "dependencies": {
++        "@supabase/auth-js": "2.104.1",
++        "@supabase/functions-js": "2.104.1",
++        "@supabase/postgrest-js": "2.104.1",
++        "@supabase/realtime-js": "2.104.1",
++        "@supabase/storage-js": "2.104.1"
++      },
++      "engines": {
++        "node": ">=20.0.0"
++      }
++    },
+     "node_modules/@tabby_ai/hijri-converter": {
+       "version": "1.0.5",
+       "resolved": "https://registry.npmjs.org/@tabby_ai/hijri-converter/-/hijri-converter-1.0.5.tgz",
+@@ -4149,7 +4296,6 @@
+       "resolved": "https://registry.npmjs.org/@tailwindcss/vite/-/vite-4.2.2.tgz",
+       "integrity": "sha512-mEiF5HO1QqCLXoNEfXVA1Tzo+cYsrqV7w9Juj2wdUFyW07JRenqMG225MvPwr3ZD9N1bFQj46X7r33iHxLUW0w==",
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "@tailwindcss/node": "4.2.2",
+         "@tailwindcss/oxide": "4.2.2",
+@@ -4173,9 +4319,9 @@
+       }
+     },
+     "node_modules/@tanstack/query-core": {
+-      "version": "5.99.0",
+-      "resolved": "https://registry.npmjs.org/@tanstack/query-core/-/query-core-5.99.0.tgz",
+-      "integrity": "sha512-3Jv3WQG0BCcH7G+7lf/bP8QyBfJOXeY+T08Rin3GZ1bshvwlbPt7NrDHMEzGdKIOmOzvIQmxjk28YEQX60k7pQ==",
++      "version": "5.100.1",
++      "resolved": "https://registry.npmjs.org/@tanstack/query-core/-/query-core-5.100.1.tgz",
++      "integrity": "sha512-awvQhOO/2TrSCHE5LKKsXcvvj6WSBncwEcMFCB/ez0Qs0b17iyyivoGArNV3HFfXryZwCpnb/olsaBBKrIbtSw==",
+       "license": "MIT",
+       "funding": {
+         "type": "github",
+@@ -4183,12 +4329,12 @@
+       }
+     },
+     "node_modules/@tanstack/react-query": {
+-      "version": "5.99.0",
+-      "resolved": "https://registry.npmjs.org/@tanstack/react-query/-/react-query-5.99.0.tgz",
+-      "integrity": "sha512-OY2bCqPemT1LlqJ8Y2CUau4KELnIhhG9Ol3ZndPbdnB095pRbPo1cHuXTndg8iIwtoHTgwZjyaDnQ0xD0mYwAw==",
++      "version": "5.100.1",
++      "resolved": "https://registry.npmjs.org/@tanstack/react-query/-/react-query-5.100.1.tgz",
++      "integrity": "sha512-UgWRLhQKprC37SsO6y1zRabOqDmM2gsdTNPbqTT35yl7kOOhwXU4nyfOiGHXPwoEFJV1IpSk85hjIFjNFWVpzw==",
+       "license": "MIT",
+       "dependencies": {
+-        "@tanstack/query-core": "5.99.0"
++        "@tanstack/query-core": "5.100.1"
+       },
+       "funding": {
+         "type": "github",
+@@ -4226,7 +4372,6 @@
+       "resolved": "https://registry.npmjs.org/@tanstack/react-start/-/react-start-1.167.39.tgz",
+       "integrity": "sha512-57vpXGWhrisb69mgYBlEmpNvZCKYKix4jj4vqkiInCM4b97Y3SA8fwTPRXs7L/kEXGZCkCFzMR6EDiP15a3rWg==",
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "@tanstack/react-router": "1.168.21",
+         "@tanstack/react-start-client": "1.166.38",
+@@ -4749,6 +4894,7 @@
+       "version": "1.0.8",
+       "resolved": "https://registry.npmjs.org/@types/estree/-/estree-1.0.8.tgz",
+       "integrity": "sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==",
++      "dev": true,
+       "license": "MIT"
+     },
+     "node_modules/@types/json-schema": {
+@@ -4762,9 +4908,7 @@
+       "version": "22.19.17",
+       "resolved": "https://registry.npmjs.org/@types/node/-/node-22.19.17.tgz",
+       "integrity": "sha512-wGdMcf+vPYM6jikpS/qhg6WiqSV/OhG+jeeHT/KlVqxYfD40iYJf9/AE1uQxVWFvU7MipKRkRv8NSHiCGgPr8Q==",
+-      "devOptional": true,
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "undici-types": "~6.21.0"
+       }
+@@ -4773,9 +4917,8 @@
+       "version": "19.2.14",
+       "resolved": "https://registry.npmjs.org/@types/react/-/react-19.2.14.tgz",
+       "integrity": "sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w==",
+-      "devOptional": true,
++      "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "csstype": "^3.2.2"
+       }
+@@ -4784,13 +4927,21 @@
+       "version": "19.2.3",
+       "resolved": "https://registry.npmjs.org/@types/react-dom/-/react-dom-19.2.3.tgz",
+       "integrity": "sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==",
+-      "devOptional": true,
++      "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "peerDependencies": {
+         "@types/react": "^19.2.0"
+       }
+     },
++    "node_modules/@types/ws": {
++      "version": "8.18.1",
++      "resolved": "https://registry.npmjs.org/@types/ws/-/ws-8.18.1.tgz",
++      "integrity": "sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==",
++      "license": "MIT",
++      "dependencies": {
++        "@types/node": "*"
++      }
++    },
+     "node_modules/@typescript-eslint/eslint-plugin": {
+       "version": "8.58.2",
+       "resolved": "https://registry.npmjs.org/@typescript-eslint/eslint-plugin/-/eslint-plugin-8.58.2.tgz",
+@@ -4836,7 +4987,6 @@
+       "integrity": "sha512-/Zb/xaIDfxeJnvishjGdcR4jmr7S+bda8PKNhRGdljDM+elXhlvN0FyPSsMnLmJUrVG9aPO6dof80wjMawsASg==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "@typescript-eslint/scope-manager": "8.58.2",
+         "@typescript-eslint/types": "8.58.2",
+@@ -5120,7 +5270,6 @@
+       "resolved": "https://registry.npmjs.org/acorn/-/acorn-8.16.0.tgz",
+       "integrity": "sha512-UVJyE9MttOsBQIDKw1skb9nAwQuR5wuGD3+82K6JgJlm/Y+KI92oNsMNGZCYdDsVtRHSak0pcV5Dno5+4jh9sw==",
+       "license": "MIT",
+-      "peer": true,
+       "bin": {
+         "acorn": "bin/acorn"
+       },
+@@ -5334,7 +5483,6 @@
+         }
+       ],
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "baseline-browser-mapping": "^2.10.12",
+         "caniuse-lite": "^1.0.30001782",
+@@ -5913,8 +6061,7 @@
+       "version": "8.6.0",
+       "resolved": "https://registry.npmjs.org/embla-carousel/-/embla-carousel-8.6.0.tgz",
+       "integrity": "sha512-SjWyZBHJPbqxHOzckOfo8lHisEaJWmwd23XppYFYVh10bU66/Pn5tkVkbkCMZVdbUE5eTCI2nD8OyIP4Z+uwkA==",
+-      "license": "MIT",
+-      "peer": true
++      "license": "MIT"
+     },
+     "node_modules/embla-carousel-react": {
+       "version": "8.6.0",
+@@ -6065,7 +6212,6 @@
+       "integrity": "sha512-XoMjdBOwe/esVgEvLmNsD3IRHkm7fbKIUGvrleloJXUZgDHig2IPWNniv+GwjyJXzuNqVjlr5+4yVUZjycJwfQ==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "@eslint-community/eslint-utils": "^4.8.0",
+         "@eslint-community/regexpp": "^4.12.1",
+@@ -6126,7 +6272,6 @@
+       "integrity": "sha512-82GZUjRS0p/jganf6q1rEO25VSoHH0hKPCTrgillPjdI/3bgBhAE1QzHrHTizjpRvy6pGAvKjDJtk2pF9NDq8w==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "bin": {
+         "eslint-config-prettier": "bin/cli.js"
+       },
+@@ -6624,6 +6769,15 @@
+         "url": "https://github.com/fb55/entities?sponsor=1"
+       }
+     },
++    "node_modules/iceberg-js": {
++      "version": "0.8.1",
++      "resolved": "https://registry.npmjs.org/iceberg-js/-/iceberg-js-0.8.1.tgz",
++      "integrity": "sha512-1dhVQZXhcHje7798IVM+xoo/1ZdVfzOMIc8/rgVSijRK38EDqOJoGula9N/8ZI5RD8QTxNQtK/Gozpr+qUqRRA==",
++      "license": "MIT",
++      "engines": {
++        "node": ">=20.0.0"
++      }
++    },
+     "node_modules/iconv-lite": {
+       "version": "0.6.3",
+       "resolved": "https://registry.npmjs.org/iconv-lite/-/iconv-lite-0.6.3.tgz",
+@@ -7384,6 +7538,7 @@
+       "version": "3.3.11",
+       "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.11.tgz",
+       "integrity": "sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w==",
++      "dev": true,
+       "funding": [
+         {
+           "type": "github",
+@@ -7644,6 +7799,7 @@
+       "version": "8.5.9",
+       "resolved": "https://registry.npmjs.org/postcss/-/postcss-8.5.9.tgz",
+       "integrity": "sha512-7a70Nsot+EMX9fFU3064K/kdHWZqGVY+BADLyXc8Dfv+mTLLVl6JzJpPaCZ2kQL9gIJvKXSLMHhqdRRjwQeFtw==",
++      "dev": true,
+       "funding": [
+         {
+           "type": "opencollective",
+@@ -7659,7 +7815,6 @@
+         }
+       ],
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "nanoid": "^3.3.11",
+         "picocolors": "^1.1.1",
+@@ -7818,7 +7973,6 @@
+       "resolved": "https://registry.npmjs.org/prettier/-/prettier-3.8.2.tgz",
+       "integrity": "sha512-8c3mgTe0ASwWAJK+78dpviD+A8EqhndQPUBpNUIPt6+xWlIigCwfN01lWr9MAede4uqXGTEKeQWTvzb3vjia0Q==",
+       "license": "MIT",
+-      "peer": true,
+       "bin": {
+         "prettier": "bin/prettier.cjs"
+       },
+@@ -7895,7 +8049,6 @@
+       "resolved": "https://registry.npmjs.org/react/-/react-19.2.5.tgz",
+       "integrity": "sha512-llUJLzz1zTUBrskt2pwZgLq59AemifIftw4aB7JxOqf1HY2FDaGDxgwpAPVzHU1kdWabH7FauP4i1oEeer2WCA==",
+       "license": "MIT",
+-      "peer": true,
+       "engines": {
+         "node": ">=0.10.0"
+       }
+@@ -7927,7 +8080,6 @@
+       "resolved": "https://registry.npmjs.org/react-dom/-/react-dom-19.2.5.tgz",
+       "integrity": "sha512-J5bAZz+DXMMwW/wV3xzKke59Af6CHY7G4uYLN1OvBcKEsWOs4pQExj86BBKamxl/Ik5bx9whOrvBlSDfWzgSag==",
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "scheduler": "^0.27.0"
+       },
+@@ -7940,7 +8092,6 @@
+       "resolved": "https://registry.npmjs.org/react-hook-form/-/react-hook-form-7.72.1.tgz",
+       "integrity": "sha512-RhwBoy2ygeVZje+C+bwJ8g0NjTdBmDlJvAUHTxRjTmSUKPYsKfMphkS2sgEMotsY03bP358yEYlnUeZy//D9Ig==",
+       "license": "MIT",
+-      "peer": true,
+       "engines": {
+         "node": ">=18.0.0"
+       },
+@@ -8200,6 +8351,7 @@
+       "version": "4.60.1",
+       "resolved": "https://registry.npmjs.org/rollup/-/rollup-4.60.1.tgz",
+       "integrity": "sha512-VmtB2rFU/GroZ4oL8+ZqXgSA38O6GR8KSIvWmEFv63pQ0G6KaBH9s07PO8XTXP4vI+3UJUEypOfjkGfmSBBR0w==",
++      "dev": true,
+       "license": "MIT",
+       "dependencies": {
+         "@types/estree": "1.0.8"
+@@ -8296,7 +8448,6 @@
+       "resolved": "https://registry.npmjs.org/seroval/-/seroval-1.5.2.tgz",
+       "integrity": "sha512-xcRN39BdsnO9Tf+VzsE7b3JyTJASItIV1FVFewJKCFcW4s4haIKS3e6vj8PGB9qBwC7tnuOywQMdv5N4qkzi7Q==",
+       "license": "MIT",
+-      "peer": true,
+       "engines": {
+         "node": ">=10"
+       }
+@@ -9144,9 +9295,8 @@
+       "version": "5.9.3",
+       "resolved": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz",
+       "integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==",
+-      "devOptional": true,
++      "dev": true,
+       "license": "Apache-2.0",
+-      "peer": true,
+       "bin": {
+         "tsc": "bin/tsc",
+         "tsserver": "bin/tsserver"
+@@ -9198,7 +9348,6 @@
+       "version": "6.21.0",
+       "resolved": "https://registry.npmjs.org/undici-types/-/undici-types-6.21.0.tgz",
+       "integrity": "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==",
+-      "devOptional": true,
+       "license": "MIT"
+     },
+     "node_modules/unenv": {
+@@ -9206,7 +9355,6 @@
+       "resolved": "https://registry.npmjs.org/unenv/-/unenv-2.0.0-rc.24.tgz",
+       "integrity": "sha512-i7qRCmY42zmCwnYlh9H2SvLEypEFGye5iRmEMKjcGi7zk9UquigRjFtTLz0TYqr0ZGLZhaMHl/foy1bZR+Cwlw==",
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "pathe": "^2.0.3"
+       }
+@@ -9364,8 +9512,8 @@
+       "version": "7.3.2",
+       "resolved": "https://registry.npmjs.org/vite/-/vite-7.3.2.tgz",
+       "integrity": "sha512-Bby3NOsna2jsjfLVOHKes8sGwgl4TT0E6vvpYgnAYDIF/tie7MRaFthmKuHx1NSXjiTueXH3do80FMQgvEktRg==",
++      "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "esbuild": "^0.27.0",
+         "fdir": "^6.5.0",
+@@ -9440,7 +9588,6 @@
+       "resolved": "https://registry.npmjs.org/vite-tsconfig-paths/-/vite-tsconfig-paths-6.1.1.tgz",
+       "integrity": "sha512-2cihq7zliibCCZ8P9cKJrQBkfgdvcFkOOc3Y02o3GWUDLgqjWsZudaoiuOwO/gzTzy17cS5F7ZPo4bsnS4DGkg==",
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "debug": "^4.1.1",
+         "globrex": "^0.1.2",
+@@ -9457,6 +9604,7 @@
+       "cpu": [
+         "ppc64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9473,6 +9621,7 @@
+       "cpu": [
+         "arm"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9489,6 +9638,7 @@
+       "cpu": [
+         "arm64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9505,6 +9655,7 @@
+       "cpu": [
+         "x64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9521,6 +9672,7 @@
+       "cpu": [
+         "arm64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9537,6 +9689,7 @@
+       "cpu": [
+         "x64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9553,6 +9706,7 @@
+       "cpu": [
+         "arm64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9569,6 +9723,7 @@
+       "cpu": [
+         "x64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9585,6 +9740,7 @@
+       "cpu": [
+         "arm"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9601,6 +9757,7 @@
+       "cpu": [
+         "arm64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9617,6 +9774,7 @@
+       "cpu": [
+         "ia32"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9633,6 +9791,7 @@
+       "cpu": [
+         "loong64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9649,6 +9808,7 @@
+       "cpu": [
+         "mips64el"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9665,6 +9825,7 @@
+       "cpu": [
+         "ppc64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9681,6 +9842,7 @@
+       "cpu": [
+         "riscv64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9697,6 +9859,7 @@
+       "cpu": [
+         "s390x"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9713,6 +9876,7 @@
+       "cpu": [
+         "x64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9729,6 +9893,7 @@
+       "cpu": [
+         "arm64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9745,6 +9910,7 @@
+       "cpu": [
+         "x64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9761,6 +9927,7 @@
+       "cpu": [
+         "arm64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9777,6 +9944,7 @@
+       "cpu": [
+         "x64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9793,6 +9961,7 @@
+       "cpu": [
+         "arm64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9809,6 +9978,7 @@
+       "cpu": [
+         "x64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9825,6 +9995,7 @@
+       "cpu": [
+         "arm64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9841,6 +10012,7 @@
+       "cpu": [
+         "ia32"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9857,6 +10029,7 @@
+       "cpu": [
+         "x64"
+       ],
++      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -9870,6 +10043,7 @@
+       "version": "0.27.7",
+       "resolved": "https://registry.npmjs.org/esbuild/-/esbuild-0.27.7.tgz",
+       "integrity": "sha512-IxpibTjyVnmrIQo5aqNpCgoACA/dTKLTlhMHihVHhdkxKyPO1uBBthumT0rdHmcsk9uMonIWS0m4FljWzILh3w==",
++      "dev": true,
+       "hasInstallScript": true,
+       "license": "MIT",
+       "bin": {
+@@ -9986,7 +10160,6 @@
+       "integrity": "sha512-T/GRD6Y5vN9g4CnGmOlfST1w7bj+1IjRFvX0K7CodZPJuPVPNPGhz8Wppah0WdT6A7I8Kad3zgZ2OkDdWtENrg==",
+       "hasInstallScript": true,
+       "license": "Apache-2.0",
+-      "peer": true,
+       "bin": {
+         "workerd": "bin/workerd"
+       },
+diff --git a/src/components/AppShell.tsx b/src/components/AppShell.tsx
+index 3be9f35..eaaf34f 100644
+--- a/src/components/AppShell.tsx
++++ b/src/components/AppShell.tsx
+@@ -1,8 +1,35 @@
+ import { ReactNode } from "react";
+ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+ import { AppSidebar } from "./AppSidebar";
++import { useAuth } from "@/contexts/AuthContext";
++import { useTheme } from "@/contexts/ThemeContext";
++import { Button } from "@/components/ui/button";
++import {
++  DropdownMenu,
++  DropdownMenuContent,
++  DropdownMenuItem,
++  DropdownMenuLabel,
++  DropdownMenuSeparator,
++  DropdownMenuTrigger,
++} from "@/components/ui/dropdown-menu";
++import { Sun, Moon, LogOut, UserCircle, ShieldCheck } from "lucide-react";
++import { toast } from "sonner";
++
++const ROLE_COLOURS: Record<string, string> = {
++  admin:   "bg-red-500/10 text-red-400 border-red-500/20",
++  manager: "bg-amber-500/10 text-amber-400 border-amber-500/20",
++  viewer:  "bg-slate-500/10 text-slate-400 border-slate-500/20",
++};
+ 
+ export function AppShell({ children }: { children: ReactNode }) {
++  const { user, signOut } = useAuth();
++  const { theme, toggleTheme } = useTheme();
++
++  async function handleSignOut() {
++    await signOut();
++    toast.success("Signed out");
++  }
++
+   return (
+     <SidebarProvider>
+       <div className="flex min-h-screen w-full bg-background">
+@@ -13,6 +40,48 @@ export function AppShell({ children }: { children: ReactNode }) {
+             <h1 className="text-sm font-semibold tracking-wide text-foreground">
+               Acorn Activations
+             </h1>
++
++            <div className="ml-auto flex items-center gap-2">
++              {/* Theme toggle */}
++              <Button
++                variant="ghost"
++                size="icon"
++                onClick={toggleTheme}
++                className="h-8 w-8"
++                title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
++              >
++                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
++              </Button>
++
++              {/* User menu */}
++              {user && (
++                <DropdownMenu>
++                  <DropdownMenuTrigger asChild>
++                    <Button variant="ghost" size="sm" className="gap-2 h-8 px-2">
++                      <UserCircle className="h-4 w-4" />
++                      <span className="hidden sm:inline text-sm">{user.name}</span>
++                    </Button>
++                  </DropdownMenuTrigger>
++                  <DropdownMenuContent align="end" className="w-56">
++                    <DropdownMenuLabel className="font-normal">
++                      <div className="flex flex-col gap-1">
++                        <p className="text-sm font-medium">{user.name}</p>
++                        <p className="text-xs text-muted-foreground truncate">{user.email}</p>
++                        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium w-fit ${ROLE_COLOURS[user.role]}`}>
++                          <ShieldCheck className="h-2.5 w-2.5" />
++                          {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
++                        </span>
++                      </div>
++                    </DropdownMenuLabel>
++                    <DropdownMenuSeparator />
++                    <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
++                      <LogOut className="h-4 w-4 mr-2" />
++                      Sign out
++                    </DropdownMenuItem>
++                  </DropdownMenuContent>
++                </DropdownMenu>
++              )}
++            </div>
+           </header>
+           <main className="flex-1 p-4 md:p-6">{children}</main>
+         </div>
+diff --git a/src/components/AppSidebar.tsx b/src/components/AppSidebar.tsx
+index 9614c16..7fff75b 100644
+--- a/src/components/AppSidebar.tsx
++++ b/src/components/AppSidebar.tsx
+@@ -1,18 +1,20 @@
+ import { Link, useLocation } from "@tanstack/react-router";
+-import { LayoutDashboard, FolderKanban, Flag, AlertTriangle, Settings, Sprout } from "lucide-react";
++import { LayoutDashboard, FolderKanban, Flag, AlertTriangle, Settings, Sprout, ShieldCheck } from "lucide-react";
+ import { cn } from "@/lib/utils";
+ import {
+   Sidebar,
+   SidebarContent,
+   SidebarGroup,
+   SidebarGroupContent,
++  SidebarGroupLabel,
+   SidebarHeader,
+   SidebarMenu,
+   SidebarMenuButton,
+   SidebarMenuItem,
+ } from "@/components/ui/sidebar";
++import { useRole } from "@/contexts/AuthContext";
+ 
+-const items = [
++const mainItems = [
+   { title: "Dashboard", url: "/", icon: LayoutDashboard, exact: true },
+   { title: "Projects", url: "/", icon: FolderKanban, exact: true },
+   { title: "Milestones", url: "/milestones", icon: Flag, exact: false },
+@@ -20,8 +22,18 @@ const items = [
+   { title: "Settings", url: "/settings", icon: Settings, exact: false },
+ ] as const;
+ 
++const adminItems = [
++  { title: "Admin Panel", url: "/admin", icon: ShieldCheck, exact: false },
++] as const;
++
+ export function AppSidebar() {
+   const { pathname } = useLocation();
++  const { isAdmin } = useRole();
++
++  function isActive(url: string, exact: boolean) {
++    return exact ? pathname === url : pathname.startsWith(url);
++  }
++
+   return (
+     <Sidebar collapsible="icon">
+       <SidebarHeader className="border-b border-sidebar-border px-4 py-4">
+@@ -40,19 +52,37 @@ export function AppSidebar() {
+         <SidebarGroup>
+           <SidebarGroupContent>
+             <SidebarMenu>
+-              {items.map((item) => {
+-                const active = item.exact
+-                  ? pathname === item.url
+-                  : pathname.startsWith(item.url);
+-                return (
++              {mainItems.map((item) => (
++                <SidebarMenuItem key={item.title}>
++                  <SidebarMenuButton
++                    asChild
++                    tooltip={item.title}
++                    className={cn(isActive(item.url, item.exact) && "bg-sidebar-accent text-sidebar-accent-foreground font-medium")}
++                  >
++                    <Link to={item.url}>
++                      <item.icon />
++                      <span>{item.title}</span>
++                    </Link>
++                  </SidebarMenuButton>
++                </SidebarMenuItem>
++              ))}
++            </SidebarMenu>
++          </SidebarGroupContent>
++        </SidebarGroup>
++
++        {isAdmin && (
++          <SidebarGroup>
++            <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden text-[10px] uppercase tracking-wider text-muted-foreground/60">
++              Admin
++            </SidebarGroupLabel>
++            <SidebarGroupContent>
++              <SidebarMenu>
++                {adminItems.map((item) => (
+                   <SidebarMenuItem key={item.title}>
+                     <SidebarMenuButton
+                       asChild
+                       tooltip={item.title}
+-                      className={cn(
+-                        active &&
+-                          "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+-                      )}
++                      className={cn(isActive(item.url, item.exact) && "bg-sidebar-accent text-sidebar-accent-foreground font-medium")}
+                     >
+                       <Link to={item.url}>
+                         <item.icon />
+@@ -60,11 +90,11 @@ export function AppSidebar() {
+                       </Link>
+                     </SidebarMenuButton>
+                   </SidebarMenuItem>
+-                );
+-              })}
+-            </SidebarMenu>
+-          </SidebarGroupContent>
+-        </SidebarGroup>
++                ))}
++              </SidebarMenu>
++            </SidebarGroupContent>
++          </SidebarGroup>
++        )}
+       </SidebarContent>
+     </Sidebar>
+   );
+diff --git a/src/components/SignInPage.tsx b/src/components/SignInPage.tsx
+new file mode 100644
+index 0000000..6d2bb3d
+--- /dev/null
++++ b/src/components/SignInPage.tsx
+@@ -0,0 +1,148 @@
++import { useState } from "react";
++import { useNavigate } from "@tanstack/react-router";
++import { Sprout, Eye, EyeOff, Lock, Mail, Shield } from "lucide-react";
++import { useAuth } from "@/contexts/AuthContext";
++import { Button } from "@/components/ui/button";
++import { Input } from "@/components/ui/input";
++import { Label } from "@/components/ui/label";
++import { Card, CardContent, CardHeader } from "@/components/ui/card";
++import { toast } from "sonner";
++
++export function SignInPage() {
++  const { signIn } = useAuth();
++  const navigate = useNavigate();
++  const [email, setEmail] = useState("");
++  const [password, setPassword] = useState("");
++  const [showPw, setShowPw] = useState(false);
++  const [loading, setLoading] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++
++  async function handleSubmit(e: React.FormEvent) {
++    e.preventDefault();
++    setError(null);
++
++    // Org domain restriction — only @acornactivations.co.za and whitelisted domains
++    const allowedDomains = ["acornactivations.co.za", "smartsure.co.za"];
++    const domain = email.split("@")[1]?.toLowerCase();
++    if (!domain || !allowedDomains.includes(domain)) {
++      setError("Access restricted to Acorn Activations organisation accounts.");
++      return;
++    }
++
++    setLoading(true);
++    const { error: err } = await signIn(email, password);
++    setLoading(false);
++
++    if (err) {
++      setError(err);
++    } else {
++      toast.success("Welcome back!");
++      navigate({ to: "/" });
++    }
++  }
++
++  return (
++    <div className="min-h-screen flex items-center justify-center bg-background px-4">
++      {/* Background acorn pattern */}
++      <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-[0.03]">
++        {Array.from({ length: 20 }).map((_, i) => (
++          <Sprout
++            key={i}
++            className="absolute text-primary"
++            style={{
++              left: `${(i * 37) % 100}%`,
++              top: `${(i * 53) % 100}%`,
++              width: 80,
++              height: 80,
++              transform: `rotate(${i * 18}deg)`,
++            }}
++          />
++        ))}
++      </div>
++
++      <div className="w-full max-w-md space-y-6 relative z-10">
++        {/* Brand header */}
++        <div className="flex flex-col items-center gap-3">
++          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary shadow-lg">
++            <Sprout className="h-8 w-8 text-primary-foreground" />
++          </div>
++          <div className="text-center">
++            <h1 className="text-2xl font-bold tracking-tight text-foreground">Acorn Activations</h1>
++            <p className="text-sm text-muted-foreground">Field Activation Project Hub</p>
++          </div>
++        </div>
++
++        <Card className="border-border/50 shadow-xl">
++          <CardHeader className="space-y-1 pb-4">
++            <div className="flex items-center gap-2">
++              <Shield className="h-4 w-4 text-primary" />
++              <span className="text-sm font-medium text-muted-foreground">
++                Organisation sign-in required
++              </span>
++            </div>
++          </CardHeader>
++          <CardContent>
++            <form onSubmit={handleSubmit} className="space-y-4">
++              <div className="space-y-2">
++                <Label htmlFor="email">Work email</Label>
++                <div className="relative">
++                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
++                  <Input
++                    id="email"
++                    type="email"
++                    placeholder="you@acornactivations.co.za"
++                    value={email}
++                    onChange={(e) => setEmail(e.target.value)}
++                    className="pl-10"
++                    required
++                    autoComplete="email"
++                  />
++                </div>
++              </div>
++
++              <div className="space-y-2">
++                <Label htmlFor="password">Password</Label>
++                <div className="relative">
++                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
++                  <Input
++                    id="password"
++                    type={showPw ? "text" : "password"}
++                    placeholder="••••••••"
++                    value={password}
++                    onChange={(e) => setPassword(e.target.value)}
++                    className="pl-10 pr-10"
++                    required
++                    autoComplete="current-password"
++                  />
++                  <button
++                    type="button"
++                    onClick={() => setShowPw((v) => !v)}
++                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
++                    tabIndex={-1}
++                  >
++                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
++                  </button>
++                </div>
++              </div>
++
++              {error && (
++                <div className="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2 text-sm text-destructive">
++                  {error}
++                </div>
++              )}
++
++              <Button type="submit" className="w-full" disabled={loading}>
++                {loading ? "Signing in…" : "Sign in"}
++              </Button>
++            </form>
++
++            <div className="mt-4 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
++              <strong>Restricted access.</strong> Only <code>@acornactivations.co.za</code> and
++              approved organisation accounts may sign in. Contact your administrator for access.
++            </div>
++          </CardContent>
++        </Card>
++      </div>
++    </div>
++  );
++}
+diff --git a/src/components/TaskDetailDrawer.tsx b/src/components/TaskDetailDrawer.tsx
+new file mode 100644
+index 0000000..39f76e1
+--- /dev/null
++++ b/src/components/TaskDetailDrawer.tsx
+@@ -0,0 +1,340 @@
++import { useState, useRef } from "react";
++import { MessageSquare, Paperclip, CheckCircle2, Upload, X, Send, ShieldCheck, Clock } from "lucide-react";
++import {
++  Sheet,
++  SheetContent,
++  SheetHeader,
++  SheetTitle,
++} from "@/components/ui/sheet";
++import { Button } from "@/components/ui/button";
++import { Textarea } from "@/components/ui/textarea";
++import { Badge } from "@/components/ui/badge";
++import { Separator } from "@/components/ui/separator";
++import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
++import { TaskStatusBadge, PriorityBadge } from "@/components/StatusBadges";
++import type { TaskRow } from "@/hooks/useProjectData";
++import { useAuth, useRole } from "@/contexts/AuthContext";
++import { useAuditLog } from "@/hooks/useAuditLog";
++import { toast } from "sonner";
++import { format } from "date-fns";
++
++// ---- Types ----
++
++interface TaskComment {
++  id: string;
++  author: string;
++  role: string;
++  body: string;
++  createdAt: string;
++}
++
++interface TaskDocument {
++  id: string;
++  name: string;
++  size: string;
++  uploadedBy: string;
++  uploadedAt: string;
++  url?: string;
++}
++
++interface SignOffRecord {
++  signedBy: string;
++  role: string;
++  signedAt: string;
++  notes: string;
++}
++
++interface TaskDetailDrawerProps {
++  task: TaskRow | null;
++  open: boolean;
++  onClose: () => void;
++}
++
++// ---- Helpers ----
++
++function formatTime(iso: string) {
++  try {
++    return format(new Date(iso), "d MMM yyyy, HH:mm");
++  } catch {
++    return iso;
++  }
++}
++
++// ---- Component ----
++
++export function TaskDetailDrawer({ task, open, onClose }: TaskDetailDrawerProps) {
++  const { user } = useAuth();
++  const { isManager } = useRole();
++  const { logAction } = useAuditLog();
++
++  // Local state — in prod these would be persisted via Supabase
++  const [comments, setComments] = useState<TaskComment[]>([]);
++  const [documents, setDocuments] = useState<TaskDocument[]>([]);
++  const [signOff, setSignOff] = useState<SignOffRecord | null>(null);
++  const [newComment, setNewComment] = useState("");
++  const [signOffNotes, setSignOffNotes] = useState("");
++  const [showSignOffForm, setShowSignOffForm] = useState(false);
++
++  const fileInputRef = useRef<HTMLInputElement>(null);
++
++  if (!task) return null;
++
++  function handleAddComment() {
++    if (!newComment.trim() || !user) return;
++    const comment: TaskComment = {
++      id: crypto.randomUUID(),
++      author: user.name,
++      role: user.role,
++      body: newComment.trim(),
++      createdAt: new Date().toISOString(),
++    };
++    setComments((prev) => [...prev, comment]);
++    logAction("task_comment_added", { taskId: task!.id, taskName: task!.name });
++    setNewComment("");
++    toast.success("Comment added");
++  }
++
++  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
++    const files = Array.from(e.target.files ?? []);
++    if (!files.length || !user) return;
++
++    const newDocs: TaskDocument[] = files.map((f) => ({
++      id: crypto.randomUUID(),
++      name: f.name,
++      size: formatBytes(f.size),
++      uploadedBy: user.name,
++      uploadedAt: new Date().toISOString(),
++      // In prod: upload to Supabase Storage and store the URL
++      url: URL.createObjectURL(f),
++    }));
++
++    setDocuments((prev) => [...prev, ...newDocs]);
++    logAction("task_document_uploaded", { taskId: task!.id, files: files.map((f) => f.name) });
++    toast.success(`${files.length} document${files.length > 1 ? "s" : ""} attached`);
++    e.target.value = "";
++  }
++
++  function handleSignOff() {
++    if (!user) return;
++    const record: SignOffRecord = {
++      signedBy: user.name,
++      role: user.role,
++      signedAt: new Date().toISOString(),
++      notes: signOffNotes.trim(),
++    };
++    setSignOff(record);
++    logAction("task_signed_off", { taskId: task!.id, taskName: task!.name, manager: user.name });
++    setShowSignOffForm(false);
++    setSignOffNotes("");
++    toast.success("Task signed off successfully");
++  }
++
++  function removeDocument(id: string) {
++    setDocuments((prev) => prev.filter((d) => d.id !== id));
++    logAction("task_document_removed", { taskId: task!.id });
++  }
++
++  return (
++    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
++      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
++        <SheetHeader className="space-y-3 pb-4">
++          <div className="flex items-start justify-between gap-2">
++            <div>
++              <span className="font-mono text-xs text-muted-foreground">{task.task_code}</span>
++              <SheetTitle className="text-lg leading-snug">{task.name}</SheetTitle>
++            </div>
++          </div>
++          <div className="flex flex-wrap gap-2">
++            <TaskStatusBadge value={task.status} />
++            <PriorityBadge value={task.priority} />
++            <Badge variant="outline">{task.phase}</Badge>
++            {task.owner && <Badge variant="secondary">{task.owner}</Badge>}
++          </div>
++        </SheetHeader>
++
++        <Separator className="mb-4" />
++
++        <Tabs defaultValue="comments">
++          <TabsList className="w-full">
++            <TabsTrigger value="comments" className="flex-1 gap-1.5">
++              <MessageSquare className="h-3.5 w-3.5" />
++              Comments ({comments.length})
++            </TabsTrigger>
++            <TabsTrigger value="documents" className="flex-1 gap-1.5">
++              <Paperclip className="h-3.5 w-3.5" />
++              Docs ({documents.length})
++            </TabsTrigger>
++            <TabsTrigger value="signoff" className="flex-1 gap-1.5">
++              <ShieldCheck className="h-3.5 w-3.5" />
++              Sign-off
++            </TabsTrigger>
++          </TabsList>
++
++          {/* --- COMMENTS --- */}
++          <TabsContent value="comments" className="mt-4 space-y-4">
++            {comments.length === 0 ? (
++              <div className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
++                <MessageSquare className="h-8 w-8 opacity-30" />
++                <p className="text-sm">No comments yet. Be the first to add one.</p>
++              </div>
++            ) : (
++              <div className="space-y-3">
++                {comments.map((c) => (
++                  <div key={c.id} className="rounded-lg border border-border/50 bg-muted/30 p-3">
++                    <div className="flex items-center justify-between mb-1">
++                      <div className="flex items-center gap-2">
++                        <span className="text-sm font-medium">{c.author}</span>
++                        <Badge variant="outline" className="text-[10px] py-0 h-4">{c.role}</Badge>
++                      </div>
++                      <span className="text-xs text-muted-foreground">{formatTime(c.createdAt)}</span>
++                    </div>
++                    <p className="text-sm text-foreground/90 whitespace-pre-wrap">{c.body}</p>
++                  </div>
++                ))}
++              </div>
++            )}
++
++            <div className="space-y-2 pt-2">
++              <Textarea
++                placeholder="Add a comment…"
++                value={newComment}
++                onChange={(e) => setNewComment(e.target.value)}
++                className="min-h-[80px] resize-none"
++                onKeyDown={(e) => {
++                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleAddComment();
++                }}
++              />
++              <div className="flex items-center justify-between">
++                <span className="text-xs text-muted-foreground">⌘+Enter to submit</span>
++                <Button size="sm" onClick={handleAddComment} disabled={!newComment.trim()} className="gap-1.5">
++                  <Send className="h-3.5 w-3.5" /> Post
++                </Button>
++              </div>
++            </div>
++          </TabsContent>
++
++          {/* --- DOCUMENTS --- */}
++          <TabsContent value="documents" className="mt-4 space-y-4">
++            <input
++              ref={fileInputRef}
++              type="file"
++              multiple
++              className="hidden"
++              onChange={handleFileUpload}
++              accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.csv"
++            />
++
++            <Button
++              variant="outline"
++              className="w-full gap-2 border-dashed"
++              onClick={() => fileInputRef.current?.click()}
++            >
++              <Upload className="h-4 w-4" />
++              Upload documents
++            </Button>
++
++            {documents.length === 0 ? (
++              <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
++                <Paperclip className="h-8 w-8 opacity-30" />
++                <p className="text-sm">No documents attached yet.</p>
++              </div>
++            ) : (
++              <div className="space-y-2">
++                {documents.map((doc) => (
++                  <div key={doc.id} className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-3">
++                    <div className="min-w-0">
++                      <a
++                        href={doc.url}
++                        target="_blank"
++                        rel="noopener noreferrer"
++                        className="text-sm font-medium text-primary hover:underline truncate block"
++                      >
++                        {doc.name}
++                      </a>
++                      <p className="text-xs text-muted-foreground">
++                        {doc.size} · Uploaded by {doc.uploadedBy} · {formatTime(doc.uploadedAt)}
++                      </p>
++                    </div>
++                    <Button
++                      variant="ghost"
++                      size="icon"
++                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
++                      onClick={() => removeDocument(doc.id)}
++                    >
++                      <X className="h-3.5 w-3.5" />
++                    </Button>
++                  </div>
++                ))}
++              </div>
++            )}
++          </TabsContent>
++
++          {/* --- SIGN OFF --- */}
++          <TabsContent value="signoff" className="mt-4 space-y-4">
++            {signOff ? (
++              <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-4 space-y-2">
++                <div className="flex items-center gap-2 text-green-400">
++                  <CheckCircle2 className="h-5 w-5" />
++                  <span className="font-semibold">Signed off</span>
++                </div>
++                <div className="text-sm space-y-1">
++                  <p><span className="text-muted-foreground">By:</span> {signOff.signedBy} ({signOff.role})</p>
++                  <p><span className="text-muted-foreground">At:</span> {formatTime(signOff.signedAt)}</p>
++                  {signOff.notes && (
++                    <p><span className="text-muted-foreground">Notes:</span> {signOff.notes}</p>
++                  )}
++                </div>
++                {isManager && (
++                  <Button variant="outline" size="sm" className="mt-2 text-destructive border-destructive/30" onClick={() => setSignOff(null)}>
++                    Revoke sign-off
++                  </Button>
++                )}
++              </div>
++            ) : (
++              <div className="space-y-4">
++                <div className="flex flex-col items-center gap-2 py-6 text-center text-muted-foreground">
++                  <Clock className="h-8 w-8 opacity-30" />
++                  <p className="text-sm">Awaiting manager sign-off.</p>
++                </div>
++
++                {isManager ? (
++                  showSignOffForm ? (
++                    <div className="space-y-3 rounded-lg border border-border/50 bg-muted/20 p-4">
++                      <p className="text-sm font-medium">Sign off on this task</p>
++                      <Textarea
++                        placeholder="Optional notes or conditions…"
++                        value={signOffNotes}
++                        onChange={(e) => setSignOffNotes(e.target.value)}
++                        className="min-h-[80px] resize-none"
++                      />
++                      <div className="flex gap-2">
++                        <Button size="sm" onClick={handleSignOff} className="gap-1.5">
++                          <ShieldCheck className="h-3.5 w-3.5" /> Confirm sign-off
++                        </Button>
++                        <Button size="sm" variant="ghost" onClick={() => setShowSignOffForm(false)}>Cancel</Button>
++                      </div>
++                    </div>
++                  ) : (
++                    <Button onClick={() => setShowSignOffForm(true)} className="w-full gap-2">
++                      <ShieldCheck className="h-4 w-4" /> Sign off task
++                    </Button>
++                  )
++                ) : (
++                  <div className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground text-center">
++                    Only managers and admins can sign off tasks.
++                  </div>
++                )}
++              </div>
++            )}
++          </TabsContent>
++        </Tabs>
++      </SheetContent>
++    </Sheet>
++  );
++}
++
++function formatBytes(bytes: number): string {
++  if (bytes < 1024) return `${bytes} B`;
++  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
++  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
++}
+diff --git a/src/components/projectTabs/AIBudgetTab.tsx b/src/components/projectTabs/AIBudgetTab.tsx
+new file mode 100644
+index 0000000..b37f3f8
+--- /dev/null
++++ b/src/components/projectTabs/AIBudgetTab.tsx
+@@ -0,0 +1,331 @@
++import { useState } from "react";
++import { Sparkles, TrendingUp, TrendingDown, AlertTriangle, Send, RefreshCw } from "lucide-react";
++import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
++import { Button } from "@/components/ui/button";
++import { Textarea } from "@/components/ui/textarea";
++import { Badge } from "@/components/ui/badge";
++import { Separator } from "@/components/ui/separator";
++import type { ProjectRow } from "@/hooks/useProjectData";
++import { formatZAR } from "@/lib/format";
++
++interface BudgetContext {
++  project: ProjectRow;
++  ticketRevenue?: number;
++  actualSpend?: number;
++}
++
++interface AIAdvice {
++  summary: string;
++  recommendation: "increase" | "decrease" | "maintain" | "charge_more";
++  reasoning: string;
++  actions: string[];
++  riskLevel: "low" | "medium" | "high";
++}
++
++function RecommendationChip({ rec }: { rec: AIAdvice["recommendation"] }) {
++  const config: Record<AIAdvice["recommendation"], { label: string; icon: React.ReactNode; cls: string }> = {
++    increase: {
++      label: "Increase budget",
++      icon: <TrendingUp className="h-3.5 w-3.5" />,
++      cls: "bg-amber-500/10 text-amber-400 border-amber-500/30",
++    },
++    decrease: {
++      label: "Decrease budget",
++      icon: <TrendingDown className="h-3.5 w-3.5" />,
++      cls: "bg-blue-500/10 text-blue-400 border-blue-500/30",
++    },
++    maintain: {
++      label: "Maintain budget",
++      icon: <Sparkles className="h-3.5 w-3.5" />,
++      cls: "bg-green-500/10 text-green-400 border-green-500/30",
++    },
++    charge_more: {
++      label: "Charge more for event",
++      icon: <TrendingUp className="h-3.5 w-3.5" />,
++      cls: "bg-violet-500/10 text-violet-400 border-violet-500/30",
++    },
++  };
++  const c = config[rec];
++  return (
++    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium ${c.cls}`}>
++      {c.icon}
++      {c.label}
++    </span>
++  );
++}
++
++function RiskBadge({ level }: { level: AIAdvice["riskLevel"] }) {
++  const cls = {
++    low: "bg-green-500/10 text-green-400",
++    medium: "bg-amber-500/10 text-amber-400",
++    high: "bg-red-500/10 text-red-400",
++  }[level];
++  return <Badge className={`${cls} border-0`}>{level.charAt(0).toUpperCase() + level.slice(1)} risk</Badge>;
++}
++
++interface AIBudgetTabProps {
++  project: ProjectRow;
++}
++
++export function AIBudgetTab({ project }: AIBudgetTabProps) {
++  const [ticketRevenue, setTicketRevenue] = useState<string>("");
++  const [actualSpend, setActualSpend] = useState<string>("");
++  const [extraContext, setExtraContext] = useState<string>("");
++  const [advice, setAdvice] = useState<AIAdvice | null>(null);
++  const [loading, setLoading] = useState(false);
++  const [rawResponse, setRawResponse] = useState<string>("");
++  const [chatHistory, setChatHistory] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
++  const [followUp, setFollowUp] = useState("");
++
++  async function fetchAdvice() {
++    setLoading(true);
++    setAdvice(null);
++    setRawResponse("");
++
++    const systemPrompt = `You are a financial advisor specialising in South African events and field activations. 
++You analyse event budgets and provide practical, actionable advice. 
++Always respond with a valid JSON object (no markdown fences) matching this structure exactly:
++{
++  "summary": "one paragraph summary",
++  "recommendation": "increase" | "decrease" | "maintain" | "charge_more",
++  "reasoning": "detailed paragraph explaining the recommendation",
++  "actions": ["action 1", "action 2", "action 3"],
++  "riskLevel": "low" | "medium" | "high"
++}`;
++
++    const userMsg = `Project: ${project.name}
++Type: ${project.type}
++Event date: ${project.event_date ?? "TBD"}
++Location: ${project.location ?? "TBD"}
++Allocated budget: ${formatZAR(project.budget_zar)}
++Ticket revenue (so far): ${ticketRevenue ? `R ${Number(ticketRevenue).toLocaleString("en-ZA")}` : "Unknown"}
++Actual spend (so far): ${actualSpend ? `R ${Number(actualSpend).toLocaleString("en-ZA")}` : "Unknown"}
++Additional context: ${extraContext || "None provided"}
++
++Please analyse this event budget and advise whether to increase, decrease, maintain the budget, or charge more for the event.`;
++
++    const newHistory = [...chatHistory, { role: "user" as const, content: userMsg }];
++    setChatHistory(newHistory);
++
++    try {
++      const res = await fetch("https://api.anthropic.com/v1/messages", {
++        method: "POST",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify({
++          model: "claude-sonnet-4-20250514",
++          max_tokens: 1000,
++          system: systemPrompt,
++          messages: newHistory,
++        }),
++      });
++
++      const data = await res.json();
++      const text = data.content?.map((b: { type: string; text?: string }) => b.text || "").join("") ?? "";
++      setRawResponse(text);
++
++      try {
++        const parsed: AIAdvice = JSON.parse(text);
++        setAdvice(parsed);
++        setChatHistory([...newHistory, { role: "assistant", content: text }]);
++      } catch {
++        setAdvice(null);
++      }
++    } catch (err) {
++      console.error(err);
++      setRawResponse("Failed to fetch AI advice. Please check your connection.");
++    } finally {
++      setLoading(false);
++    }
++  }
++
++  async function sendFollowUp() {
++    if (!followUp.trim()) return;
++    setLoading(true);
++
++    const newHistory = [...chatHistory, { role: "user" as const, content: followUp }];
++    setChatHistory(newHistory);
++    setFollowUp("");
++
++    const systemPrompt = `You are a financial advisor specialising in South African events and field activations.
++Answer follow-up questions conversationally but concisely. Keep responses under 200 words.`;
++
++    try {
++      const res = await fetch("https://api.anthropic.com/v1/messages", {
++        method: "POST",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify({
++          model: "claude-sonnet-4-20250514",
++          max_tokens: 1000,
++          system: systemPrompt,
++          messages: newHistory,
++        }),
++      });
++      const data = await res.json();
++      const text = data.content?.map((b: { type: string; text?: string }) => b.text || "").join("") ?? "";
++      setChatHistory([...newHistory, { role: "assistant", content: text }]);
++    } catch (err) {
++      console.error(err);
++    } finally {
++      setLoading(false);
++    }
++  }
++
++  const followUpMessages = chatHistory.filter((_, i) => i > 1); // skip the initial analysis pair (0 & 1)
++
++  return (
++    <div className="mt-4 space-y-5">
++      {/* Input card */}
++      <Card>
++        <CardHeader className="pb-3">
++          <CardTitle className="flex items-center gap-2 text-base">
++            <Sparkles className="h-4 w-4 text-primary" />
++            AI Budget Advisor
++          </CardTitle>
++        </CardHeader>
++        <CardContent className="space-y-4">
++          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
++            <div className="space-y-1.5">
++              <label className="text-sm font-medium">Allocated budget</label>
++              <div className="rounded-md border border-border/50 bg-muted/30 px-3 py-2 text-sm font-semibold text-primary">
++                {formatZAR(project.budget_zar)}
++              </div>
++            </div>
++            <div className="space-y-1.5">
++              <label className="text-sm font-medium">Ticket revenue so far (ZAR)</label>
++              <input
++                type="number"
++                min={0}
++                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
++                placeholder="e.g. 45000"
++                value={ticketRevenue}
++                onChange={(e) => setTicketRevenue(e.target.value)}
++              />
++            </div>
++            <div className="space-y-1.5">
++              <label className="text-sm font-medium">Actual spend so far (ZAR)</label>
++              <input
++                type="number"
++                min={0}
++                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
++                placeholder="e.g. 30000"
++                value={actualSpend}
++                onChange={(e) => setActualSpend(e.target.value)}
++              />
++            </div>
++          </div>
++
++          <div className="space-y-1.5">
++            <label className="text-sm font-medium">Additional context</label>
++            <Textarea
++              placeholder="e.g. Venue cost increased by 20%, unexpected equipment rental needed, sponsor pulled out…"
++              value={extraContext}
++              onChange={(e) => setExtraContext(e.target.value)}
++              className="min-h-[70px] resize-none"
++            />
++          </div>
++
++          <Button onClick={fetchAdvice} disabled={loading} className="gap-2">
++            {loading ? (
++              <><RefreshCw className="h-4 w-4 animate-spin" /> Analysing…</>
++            ) : (
++              <><Sparkles className="h-4 w-4" /> Get AI advice</>
++            )}
++          </Button>
++        </CardContent>
++      </Card>
++
++      {/* AI Result */}
++      {advice && (
++        <Card className="border-primary/20 bg-primary/[0.03]">
++          <CardContent className="pt-5 space-y-4">
++            <div className="flex flex-wrap items-center gap-3">
++              <RecommendationChip rec={advice.recommendation} />
++              <RiskBadge level={advice.riskLevel} />
++            </div>
++
++            <p className="text-sm text-foreground/90">{advice.summary}</p>
++
++            <Separator />
++
++            <div className="space-y-2">
++              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Reasoning</p>
++              <p className="text-sm text-foreground/80">{advice.reasoning}</p>
++            </div>
++
++            <div className="space-y-2">
++              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Recommended actions</p>
++              <ul className="space-y-1.5">
++                {advice.actions.map((a, i) => (
++                  <li key={i} className="flex items-start gap-2 text-sm">
++                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-primary">
++                      {i + 1}
++                    </span>
++                    {a}
++                  </li>
++                ))}
++              </ul>
++            </div>
++          </CardContent>
++        </Card>
++      )}
++
++      {/* Fallback raw text */}
++      {!advice && rawResponse && (
++        <Card>
++          <CardContent className="pt-4">
++            <pre className="whitespace-pre-wrap text-sm text-foreground/80">{rawResponse}</pre>
++          </CardContent>
++        </Card>
++      )}
++
++      {/* Follow-up chat */}
++      {chatHistory.length > 0 && (
++        <Card>
++          <CardHeader className="pb-2">
++            <CardTitle className="text-sm">Ask a follow-up question</CardTitle>
++          </CardHeader>
++          <CardContent className="space-y-3">
++            {/* Follow-up messages */}
++            {followUpMessages.map((msg, i) => (
++              <div
++                key={i}
++                className={`rounded-lg px-3 py-2 text-sm ${
++                  msg.role === "user"
++                    ? "bg-primary/10 text-foreground ml-6"
++                    : "bg-muted/50 text-foreground/90 mr-6"
++                }`}
++              >
++                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block mb-1">
++                  {msg.role === "user" ? "You" : "AI Advisor"}
++                </span>
++                {msg.content}
++              </div>
++            ))}
++
++            <div className="flex gap-2">
++              <Textarea
++                placeholder="e.g. What if ticket sales drop by 30%? Should I reduce marketing spend?"
++                value={followUp}
++                onChange={(e) => setFollowUp(e.target.value)}
++                className="min-h-[60px] resize-none"
++                onKeyDown={(e) => {
++                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendFollowUp();
++                }}
++              />
++              <Button
++                variant="outline"
++                size="icon"
++                onClick={sendFollowUp}
++                disabled={loading || !followUp.trim()}
++                className="shrink-0 self-end"
++              >
++                <Send className="h-4 w-4" />
++              </Button>
++            </div>
++            <p className="text-xs text-muted-foreground">⌘+Enter to send</p>
++          </CardContent>
++        </Card>
++      )}
++    </div>
++  );
++}
+diff --git a/src/components/projectTabs/AuditTrailTab.tsx b/src/components/projectTabs/AuditTrailTab.tsx
+new file mode 100644
+index 0000000..30c08df
+--- /dev/null
++++ b/src/components/projectTabs/AuditTrailTab.tsx
+@@ -0,0 +1,158 @@
++import { useState, useEffect } from "react";
++import { ClipboardList, Filter, RefreshCw } from "lucide-react";
++import { Card, CardContent } from "@/components/ui/card";
++import { Badge } from "@/components/ui/badge";
++import { Button } from "@/components/ui/button";
++import { Input } from "@/components/ui/input";
++import {
++  Select,
++  SelectContent,
++  SelectItem,
++  SelectTrigger,
++  SelectValue,
++} from "@/components/ui/select";
++import { getAuditLog, type AuditEntry } from "@/hooks/useAuditLog";
++import { format } from "date-fns";
++
++const ACTION_LABELS: Record<string, string> = {
++  task_comment_added: "Comment Added",
++  task_document_uploaded: "Document Uploaded",
++  task_document_removed: "Document Removed",
++  task_signed_off: "Task Signed Off",
++  project_created: "Project Created",
++  task_status_changed: "Status Changed",
++  marketing_updated: "Marketing Updated",
++  user_signed_in: "User Signed In",
++};
++
++const ACTION_COLOURS: Record<string, string> = {
++  task_comment_added: "bg-blue-500/10 text-blue-400 border-blue-500/20",
++  task_document_uploaded: "bg-violet-500/10 text-violet-400 border-violet-500/20",
++  task_document_removed: "bg-orange-500/10 text-orange-400 border-orange-500/20",
++  task_signed_off: "bg-green-500/10 text-green-400 border-green-500/20",
++  project_created: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
++  task_status_changed: "bg-amber-500/10 text-amber-400 border-amber-500/20",
++  marketing_updated: "bg-pink-500/10 text-pink-400 border-pink-500/20",
++  user_signed_in: "bg-slate-500/10 text-slate-400 border-slate-500/20",
++};
++
++function formatTime(iso: string) {
++  try {
++    return format(new Date(iso), "d MMM yyyy, HH:mm:ss");
++  } catch {
++    return iso;
++  }
++}
++
++function ActionBadge({ action }: { action: string }) {
++  const label = ACTION_LABELS[action] ?? action.replace(/_/g, " ");
++  const cls = ACTION_COLOURS[action] ?? "bg-muted text-muted-foreground";
++  return (
++    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${cls}`}>
++      {label}
++    </span>
++  );
++}
++
++export function AuditTrailTab() {
++  const [entries, setEntries] = useState<AuditEntry[]>([]);
++  const [search, setSearch] = useState("");
++  const [filterAction, setFilterAction] = useState("__all");
++
++  function refresh() {
++    setEntries(getAuditLog());
++  }
++
++  useEffect(() => {
++    refresh();
++    const interval = setInterval(refresh, 5000);
++    return () => clearInterval(interval);
++  }, []);
++
++  const uniqueActions = Array.from(new Set(entries.map((e) => e.action)));
++
++  const filtered = entries.filter((e) => {
++    const matchAction = filterAction === "__all" || e.action === filterAction;
++    const matchSearch =
++      !search ||
++      e.actor.toLowerCase().includes(search.toLowerCase()) ||
++      e.action.toLowerCase().includes(search.toLowerCase()) ||
++      JSON.stringify(e.payload).toLowerCase().includes(search.toLowerCase());
++    return matchAction && matchSearch;
++  });
++
++  return (
++    <div className="mt-4 space-y-4">
++      {/* Toolbar */}
++      <div className="flex flex-wrap items-center gap-2">
++        <div className="relative">
++          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
++          <Input
++            placeholder="Search audit log…"
++            value={search}
++            onChange={(e) => setSearch(e.target.value)}
++            className="pl-8 h-9 w-[220px]"
++          />
++        </div>
++
++        <Select value={filterAction} onValueChange={setFilterAction}>
++          <SelectTrigger className="h-9 w-[180px]">
++            <SelectValue placeholder="All actions" />
++          </SelectTrigger>
++          <SelectContent>
++            <SelectItem value="__all">All actions</SelectItem>
++            {uniqueActions.map((a) => (
++              <SelectItem key={a} value={a}>{ACTION_LABELS[a] ?? a}</SelectItem>
++            ))}
++          </SelectContent>
++        </Select>
++
++        <div className="flex-1" />
++        <Button size="sm" variant="outline" onClick={refresh} className="gap-1.5">
++          <RefreshCw className="h-3.5 w-3.5" /> Refresh
++        </Button>
++      </div>
++
++      {/* Log entries */}
++      {filtered.length === 0 ? (
++        <Card>
++          <CardContent className="flex flex-col items-center gap-3 py-12">
++            <ClipboardList className="h-10 w-10 text-muted-foreground/30" />
++            <p className="text-sm text-muted-foreground">
++              {entries.length === 0
++                ? "No audit events recorded yet. Activity will appear here as you use the system."
++                : "No events match your filters."}
++            </p>
++          </CardContent>
++        </Card>
++      ) : (
++        <div className="space-y-2">
++          {filtered.map((entry) => (
++            <div
++              key={entry.id}
++              className="flex flex-wrap items-start gap-3 rounded-lg border border-border/50 bg-card/50 px-4 py-3"
++            >
++              <div className="flex-1 min-w-0 space-y-1">
++                <div className="flex flex-wrap items-center gap-2">
++                  <ActionBadge action={entry.action} />
++                  <span className="text-sm font-medium">{entry.actor}</span>
++                  <Badge variant="outline" className="text-[10px] py-0 h-4">{entry.actorRole}</Badge>
++                </div>
++                {Object.keys(entry.payload).length > 0 && (
++                  <p className="text-xs text-muted-foreground font-mono truncate">
++                    {Object.entries(entry.payload)
++                      .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
++                      .join(" · ")}
++                  </p>
++                )}
++              </div>
++              <span className="text-xs text-muted-foreground tabular-nums shrink-0">
++                {formatTime(entry.timestamp)}
++              </span>
++            </div>
++          ))}
++        </div>
++      )}
++    </div>
++  );
++}
+diff --git a/src/components/projectTabs/MarketingTab.tsx b/src/components/projectTabs/MarketingTab.tsx
+new file mode 100644
+index 0000000..d729aab
+--- /dev/null
++++ b/src/components/projectTabs/MarketingTab.tsx
+@@ -0,0 +1,386 @@
++import { useState } from "react";
++import { Ticket, ImageIcon, ExternalLink, PlusCircle, CheckCircle2, Clock, AlertCircle } from "lucide-react";
++import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
++import { Button } from "@/components/ui/button";
++import { Input } from "@/components/ui/input";
++import { Label } from "@/components/ui/label";
++import { Badge } from "@/components/ui/badge";
++import { Separator } from "@/components/ui/separator";
++import {
++  Select,
++  SelectContent,
++  SelectItem,
++  SelectTrigger,
++  SelectValue,
++} from "@/components/ui/select";
++import { Textarea } from "@/components/ui/textarea";
++import { useAuditLog } from "@/hooks/useAuditLog";
++import { toast } from "sonner";
++
++type TicketStatus = "not_listed" | "listed" | "sold_out" | "event_passed";
++type FlyerStatus = "not_started" | "in_design" | "approved" | "distributed";
++
++interface HowlerListing {
++  eventUrl: string;
++  ticketPrice: number;
++  capacity: number;
++  sold: number;
++  status: TicketStatus;
++  notes: string;
++}
++
++interface FlyerRecord {
++  id: string;
++  version: string;
++  status: FlyerStatus;
++  channels: string[];
++  notes: string;
++  updatedAt: string;
++}
++
++const TICKET_STATUS_OPTS: { value: TicketStatus; label: string }[] = [
++  { value: "not_listed", label: "Not listed" },
++  { value: "listed", label: "Listed on Howler" },
++  { value: "sold_out", label: "Sold out" },
++  { value: "event_passed", label: "Event passed" },
++];
++
++const FLYER_STATUS_OPTS: { value: FlyerStatus; label: string }[] = [
++  { value: "not_started", label: "Not started" },
++  { value: "in_design", label: "In design" },
++  { value: "approved", label: "Approved" },
++  { value: "distributed", label: "Distributed" },
++];
++
++const FLYER_CHANNELS = ["WhatsApp", "Instagram", "Facebook", "Email", "Twitter/X", "Print", "TikTok"];
++
++function statusIcon(status: TicketStatus | FlyerStatus) {
++  if (status === "sold_out" || status === "approved" || status === "distributed") {
++    return <CheckCircle2 className="h-4 w-4 text-green-400" />;
++  }
++  if (status === "listed" || status === "in_design") {
++    return <Clock className="h-4 w-4 text-amber-400" />;
++  }
++  return <AlertCircle className="h-4 w-4 text-muted-foreground/40" />;
++}
++
++interface MarketingTabProps {
++  projectId: string;
++  projectName: string;
++}
++
++export function MarketingTab({ projectId, projectName }: MarketingTabProps) {
++  const { logAction } = useAuditLog();
++
++  const [howler, setHowler] = useState<HowlerListing>({
++    eventUrl: "",
++    ticketPrice: 0,
++    capacity: 0,
++    sold: 0,
++    status: "not_listed",
++    notes: "",
++  });
++
++  const [flyers, setFlyers] = useState<FlyerRecord[]>([]);
++  const [showFlyerForm, setShowFlyerForm] = useState(false);
++  const [newFlyer, setNewFlyer] = useState<Omit<FlyerRecord, "id" | "updatedAt">>({
++    version: "v1",
++    status: "not_started",
++    channels: [],
++    notes: "",
++  });
++
++  function updateHowler(patch: Partial<HowlerListing>) {
++    setHowler((prev) => ({ ...prev, ...patch }));
++  }
++
++  function saveHowler() {
++    logAction("marketing_updated", { projectId, type: "howler", status: howler.status });
++    toast.success("Howler listing saved");
++  }
++
++  function toggleChannel(ch: string) {
++    setNewFlyer((prev) => ({
++      ...prev,
++      channels: prev.channels.includes(ch)
++        ? prev.channels.filter((c) => c !== ch)
++        : [...prev.channels, ch],
++    }));
++  }
++
++  function addFlyer() {
++    const record: FlyerRecord = {
++      ...newFlyer,
++      id: crypto.randomUUID(),
++      updatedAt: new Date().toISOString(),
++    };
++    setFlyers((prev) => [...prev, record]);
++    logAction("marketing_updated", { projectId, type: "flyer", version: newFlyer.version });
++    setNewFlyer({ version: `v${flyers.length + 2}`, status: "not_started", channels: [], notes: "" });
++    setShowFlyerForm(false);
++    toast.success("Flyer record added");
++  }
++
++  function updateFlyerStatus(id: string, status: FlyerStatus) {
++    setFlyers((prev) => prev.map((f) => f.id === id ? { ...f, status, updatedAt: new Date().toISOString() } : f));
++    logAction("marketing_updated", { projectId, type: "flyer_status", status });
++    toast.success("Flyer status updated");
++  }
++
++  const soldPct = howler.capacity > 0 ? Math.min(100, Math.round((howler.sold / howler.capacity) * 100)) : 0;
++
++  return (
++    <div className="mt-4 space-y-6">
++      {/* ---- Ticket Sales — Howler ---- */}
++      <Card>
++        <CardHeader className="pb-3">
++          <CardTitle className="flex items-center gap-2 text-base">
++            <Ticket className="h-4 w-4 text-primary" />
++            Ticket Sales — Howler
++          </CardTitle>
++        </CardHeader>
++        <CardContent className="space-y-4">
++          {/* Status & URL row */}
++          <div className="flex flex-wrap gap-4">
++            <div className="flex-1 min-w-[200px] space-y-1.5">
++              <Label>Howler event URL</Label>
++              <div className="flex gap-2">
++                <Input
++                  placeholder="https://howler.co.za/events/…"
++                  value={howler.eventUrl}
++                  onChange={(e) => updateHowler({ eventUrl: e.target.value })}
++                />
++                {howler.eventUrl && (
++                  <Button variant="outline" size="icon" asChild>
++                    <a href={howler.eventUrl} target="_blank" rel="noopener noreferrer">
++                      <ExternalLink className="h-4 w-4" />
++                    </a>
++                  </Button>
++                )}
++              </div>
++            </div>
++
++            <div className="space-y-1.5">
++              <Label>Status</Label>
++              <Select value={howler.status} onValueChange={(v) => updateHowler({ status: v as TicketStatus })}>
++                <SelectTrigger className="w-[170px]">
++                  <div className="flex items-center gap-2">
++                    {statusIcon(howler.status)}
++                    <SelectValue />
++                  </div>
++                </SelectTrigger>
++                <SelectContent>
++                  {TICKET_STATUS_OPTS.map((o) => (
++                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
++                  ))}
++                </SelectContent>
++              </Select>
++            </div>
++          </div>
++
++          {/* Financials */}
++          <div className="flex flex-wrap gap-4">
++            <div className="space-y-1.5">
++              <Label>Ticket price (ZAR)</Label>
++              <Input
++                type="number"
++                min={0}
++                value={howler.ticketPrice || ""}
++                onChange={(e) => updateHowler({ ticketPrice: Number(e.target.value) })}
++                className="w-[140px]"
++                placeholder="0"
++              />
++            </div>
++            <div className="space-y-1.5">
++              <Label>Capacity</Label>
++              <Input
++                type="number"
++                min={0}
++                value={howler.capacity || ""}
++                onChange={(e) => updateHowler({ capacity: Number(e.target.value) })}
++                className="w-[120px]"
++                placeholder="0"
++              />
++            </div>
++            <div className="space-y-1.5">
++              <Label>Tickets sold</Label>
++              <Input
++                type="number"
++                min={0}
++                value={howler.sold || ""}
++                onChange={(e) => updateHowler({ sold: Number(e.target.value) })}
++                className="w-[120px]"
++                placeholder="0"
++              />
++            </div>
++          </div>
++
++          {/* Revenue summary */}
++          {howler.capacity > 0 && (
++            <div className="rounded-lg bg-muted/40 p-3 space-y-2">
++              <div className="flex justify-between text-sm">
++                <span className="text-muted-foreground">Sales progress</span>
++                <span className="font-medium">{howler.sold} / {howler.capacity} ({soldPct}%)</span>
++              </div>
++              <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
++                <div
++                  className="h-full rounded-full bg-primary transition-all"
++                  style={{ width: `${soldPct}%` }}
++                />
++              </div>
++              <div className="flex justify-between text-sm">
++                <span className="text-muted-foreground">Revenue to date</span>
++                <span className="font-semibold text-primary">
++                  R {(howler.sold * howler.ticketPrice).toLocaleString("en-ZA")}
++                </span>
++              </div>
++              {howler.capacity > 0 && (
++                <div className="flex justify-between text-sm">
++                  <span className="text-muted-foreground">Projected (full house)</span>
++                  <span className="font-medium">
++                    R {(howler.capacity * howler.ticketPrice).toLocaleString("en-ZA")}
++                  </span>
++                </div>
++              )}
++            </div>
++          )}
++
++          <div className="space-y-1.5">
++            <Label>Notes</Label>
++            <Textarea
++              placeholder="Promo codes, early-bird details, restrictions…"
++              value={howler.notes}
++              onChange={(e) => updateHowler({ notes: e.target.value })}
++              className="min-h-[60px] resize-none"
++            />
++          </div>
++
++          <Button size="sm" onClick={saveHowler}>Save Howler details</Button>
++        </CardContent>
++      </Card>
++
++      {/* ---- Flyer Distribution ---- */}
++      <Card>
++        <CardHeader className="pb-3">
++          <div className="flex items-center justify-between">
++            <CardTitle className="flex items-center gap-2 text-base">
++              <ImageIcon className="h-4 w-4 text-primary" />
++              Flyers &amp; Promotion
++            </CardTitle>
++            <Button size="sm" variant="outline" onClick={() => setShowFlyerForm(true)} className="gap-1.5">
++              <PlusCircle className="h-3.5 w-3.5" /> Add flyer
++            </Button>
++          </div>
++        </CardHeader>
++        <CardContent className="space-y-4">
++          {/* Add flyer form */}
++          {showFlyerForm && (
++            <div className="rounded-lg border border-dashed border-border p-4 space-y-3">
++              <p className="text-sm font-medium">New flyer record</p>
++              <div className="flex flex-wrap gap-3">
++                <div className="space-y-1.5">
++                  <Label>Version / Name</Label>
++                  <Input
++                    value={newFlyer.version}
++                    onChange={(e) => setNewFlyer((p) => ({ ...p, version: e.target.value }))}
++                    className="w-[120px]"
++                    placeholder="v1"
++                  />
++                </div>
++                <div className="space-y-1.5">
++                  <Label>Status</Label>
++                  <Select value={newFlyer.status} onValueChange={(v) => setNewFlyer((p) => ({ ...p, status: v as FlyerStatus }))}>
++                    <SelectTrigger className="w-[160px]">
++                      <SelectValue />
++                    </SelectTrigger>
++                    <SelectContent>
++                      {FLYER_STATUS_OPTS.map((o) => (
++                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
++                      ))}
++                    </SelectContent>
++                  </Select>
++                </div>
++              </div>
++
++              <div className="space-y-1.5">
++                <Label>Distribution channels</Label>
++                <div className="flex flex-wrap gap-2">
++                  {FLYER_CHANNELS.map((ch) => (
++                    <button
++                      key={ch}
++                      type="button"
++                      onClick={() => toggleChannel(ch)}
++                      className={`rounded-full border px-3 py-1 text-xs transition-colors ${
++                        newFlyer.channels.includes(ch)
++                          ? "border-primary bg-primary/10 text-primary"
++                          : "border-border text-muted-foreground hover:border-primary/50"
++                      }`}
++                    >
++                      {ch}
++                    </button>
++                  ))}
++                </div>
++              </div>
++
++              <div className="space-y-1.5">
++                <Label>Notes</Label>
++                <Input
++                  placeholder="Any notes about this flyer…"
++                  value={newFlyer.notes}
++                  onChange={(e) => setNewFlyer((p) => ({ ...p, notes: e.target.value }))}
++                />
++              </div>
++
++              <div className="flex gap-2">
++                <Button size="sm" onClick={addFlyer}>Add</Button>
++                <Button size="sm" variant="ghost" onClick={() => setShowFlyerForm(false)}>Cancel</Button>
++              </div>
++            </div>
++          )}
++
++          {flyers.length === 0 && !showFlyerForm ? (
++            <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
++              <ImageIcon className="h-8 w-8 opacity-30" />
++              <p className="text-sm">No flyer records yet. Add the first one to track distribution.</p>
++            </div>
++          ) : (
++            <div className="space-y-3">
++              {flyers.map((f) => (
++                <div key={f.id} className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-2">
++                  <div className="flex items-center justify-between">
++                    <div className="flex items-center gap-2">
++                      {statusIcon(f.status)}
++                      <span className="font-medium text-sm">Flyer {f.version}</span>
++                    </div>
++                    <Select value={f.status} onValueChange={(v) => updateFlyerStatus(f.id, v as FlyerStatus)}>
++                      <SelectTrigger className="h-7 w-[140px] text-xs">
++                        <SelectValue />
++                      </SelectTrigger>
++                      <SelectContent>
++                        {FLYER_STATUS_OPTS.map((o) => (
++                          <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
++                        ))}
++                      </SelectContent>
++                    </Select>
++                  </div>
++
++                  {f.channels.length > 0 && (
++                    <div className="flex flex-wrap gap-1.5">
++                      {f.channels.map((ch) => (
++                        <Badge key={ch} variant="secondary" className="text-[11px] py-0 h-5">{ch}</Badge>
++                      ))}
++                    </div>
++                  )}
++
++                  {f.notes && (
++                    <p className="text-xs text-muted-foreground">{f.notes}</p>
++                  )}
++                </div>
++              ))}
++            </div>
++          )}
++        </CardContent>
++      </Card>
++    </div>
++  );
++}
+diff --git a/src/components/projectTabs/TasksTab.tsx b/src/components/projectTabs/TasksTab.tsx
+index 45dd11e..b367114 100644
+--- a/src/components/projectTabs/TasksTab.tsx
++++ b/src/components/projectTabs/TasksTab.tsx
+@@ -21,8 +21,9 @@ import { Skeleton } from "@/components/ui/skeleton";
+ import { PriorityBadge, TaskStatusBadge, CPBadge } from "@/components/StatusBadges";
+ import { PHASES } from "@/lib/templates";
+ import { dayToWeek } from "@/lib/format";
+-import { Plus } from "lucide-react";
++import { Plus, ChevronRight } from "lucide-react";
+ import { toast } from "sonner";
++import { TaskDetailDrawer } from "@/components/TaskDetailDrawer";
+ 
+ const ALL = "__all";
+ 
+@@ -34,6 +35,7 @@ export function TasksTab({ projectId }: { projectId: string }) {
+   const [owner, setOwner] = useState<string>(ALL);
+   const [priority, setPriority] = useState<string>(ALL);
+   const [status, setStatus] = useState<string>(ALL);
++  const [selectedTask, setSelectedTask] = useState<TaskRow | null>(null);
+ 
+   const owners = useMemo(() => {
+     const set = new Set<string>();
+@@ -59,52 +61,68 @@ export function TasksTab({ projectId }: { projectId: string }) {
+   }
+ 
+   return (
+-    <div className="mt-4 space-y-4">
+-      {/* Filters */}
+-      <div className="flex flex-wrap items-center gap-2">
+-        <FilterSelect label="Phase" value={phase} onValue={setPhase} options={PHASES} />
+-        <FilterSelect label="Owner" value={owner} onValue={setOwner} options={owners} />
+-        <FilterSelect label="Priority" value={priority} onValue={setPriority} options={["High", "Medium", "Low"]} />
+-        <FilterSelect label="Status" value={status} onValue={setStatus} options={["Not Started", "In Progress", "Complete", "Blocked"]} />
+-        <div className="flex-1" />
+-        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => toast.info("Add task — coming soon")}>
+-          <Plus className="h-3.5 w-3.5" /> Add task
+-        </Button>
+-      </div>
++    <>
++      <div className="mt-4 space-y-4">
++        {/* Filters */}
++        <div className="flex flex-wrap items-center gap-2">
++          <FilterSelect label="Phase" value={phase} onValue={setPhase} options={PHASES} />
++          <FilterSelect label="Owner" value={owner} onValue={setOwner} options={owners} />
++          <FilterSelect label="Priority" value={priority} onValue={setPriority} options={["High", "Medium", "Low"]} />
++          <FilterSelect label="Status" value={status} onValue={setStatus} options={["Not Started", "In Progress", "Complete", "Blocked"]} />
++          <div className="flex-1" />
++          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => toast.info("Add task — coming soon")}>
++            <Plus className="h-3.5 w-3.5" /> Add task
++          </Button>
++        </div>
+ 
+-      <Card>
+-        <CardContent className="p-0">
+-          <div className="overflow-x-auto">
+-            <Table className="table-striped">
+-              <TableHeader>
+-                <TableRow>
+-                  <TableHead className="w-[60px]">ID</TableHead>
+-                  <TableHead>Task</TableHead>
+-                  <TableHead>Phase</TableHead>
+-                  <TableHead>Owner</TableHead>
+-                  <TableHead>Start</TableHead>
+-                  <TableHead>Duration</TableHead>
+-                  <TableHead>Priority</TableHead>
+-                  <TableHead>Status</TableHead>
+-                  <TableHead>CP</TableHead>
+-                </TableRow>
+-              </TableHeader>
+-              <TableBody>
+-                {filtered.length === 0 ? (
++        <Card>
++          <CardContent className="p-0">
++            <div className="overflow-x-auto">
++              <Table className="table-striped">
++                <TableHeader>
+                   <TableRow>
+-                    <TableCell colSpan={9} className="py-8 text-center text-sm text-muted-foreground">
+-                      No tasks match the selected filters.
+-                    </TableCell>
++                    <TableHead className="w-[60px]">ID</TableHead>
++                    <TableHead>Task</TableHead>
++                    <TableHead>Phase</TableHead>
++                    <TableHead>Owner</TableHead>
++                    <TableHead>Start</TableHead>
++                    <TableHead>Duration</TableHead>
++                    <TableHead>Priority</TableHead>
++                    <TableHead>Status</TableHead>
++                    <TableHead>CP</TableHead>
++                    <TableHead className="w-[40px]" />
+                   </TableRow>
+-                ) : (
+-                  filtered.map((t) => <TaskRowItem key={t.id} task={t} onChangeStatus={(s) => updateStatus.mutate({ id: t.id, status: s })} />)
+-                )}
+-              </TableBody>
+-            </Table>
+-          </div>
+-        </CardContent>
+-      </Card>
+-    </div>
++                </TableHeader>
++                <TableBody>
++                  {filtered.length === 0 ? (
++                    <TableRow>
++                      <TableCell colSpan={10} className="py-8 text-center text-sm text-muted-foreground">
++                        No tasks match the selected filters.
++                      </TableCell>
++                    </TableRow>
++                  ) : (
++                    filtered.map((t) => (
++                      <TaskRowItem
++                        key={t.id}
++                        task={t}
++                        onChangeStatus={(s) => updateStatus.mutate({ id: t.id, status: s })}
++                        onOpen={() => setSelectedTask(t)}
++                      />
++                    ))
++                  )}
++                </TableBody>
++              </Table>
++            </div>
++          </CardContent>
++        </Card>
++      </div>
++
++      <TaskDetailDrawer
++        task={selectedTask}
++        open={!!selectedTask}
++        onClose={() => setSelectedTask(null)}
++      />
++    </>
+   );
+ }
+ 
+@@ -127,12 +145,14 @@ function FilterSelect({
+ function TaskRowItem({
+   task,
+   onChangeStatus,
++  onOpen,
+ }: {
+   task: TaskRow;
+   onChangeStatus: (s: TaskRow["status"]) => void;
++  onOpen: () => void;
+ }) {
+   return (
+-    <TableRow>
++    <TableRow className="group cursor-pointer hover:bg-muted/40" onClick={onOpen}>
+       <TableCell className="font-mono text-xs text-muted-foreground">{task.task_code}</TableCell>
+       <TableCell className="font-medium">{task.name}</TableCell>
+       <TableCell className="text-sm text-muted-foreground">{task.phase}</TableCell>
+@@ -140,7 +160,7 @@ function TaskRowItem({
+       <TableCell className="text-sm tabular-nums">W{dayToWeek(task.start_day)}</TableCell>
+       <TableCell className="text-sm tabular-nums">{task.duration_days}d</TableCell>
+       <TableCell><PriorityBadge value={task.priority} /></TableCell>
+-      <TableCell>
++      <TableCell onClick={(e) => e.stopPropagation()}>
+         <Select value={task.status} onValueChange={(v) => onChangeStatus(v as TaskRow["status"])}>
+           <SelectTrigger className="h-8 w-[140px] border-transparent bg-transparent px-2 hover:bg-muted/50">
+             <TaskStatusBadge value={task.status} />
+@@ -153,6 +173,9 @@ function TaskRowItem({
+         </Select>
+       </TableCell>
+       <TableCell>{task.critical_path && <CPBadge />}</TableCell>
++      <TableCell>
++        <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
++      </TableCell>
+     </TableRow>
+   );
+ }
+diff --git a/src/contexts/AuthContext.tsx b/src/contexts/AuthContext.tsx
+new file mode 100644
+index 0000000..7ccfcd4
+--- /dev/null
++++ b/src/contexts/AuthContext.tsx
+@@ -0,0 +1,96 @@
++import { createContext, useContext, useEffect, useState, ReactNode } from "react";
++import { supabase } from "@/integrations/supabase/client";
++import type { User, Session } from "@supabase/supabase-js";
++
++export type UserRole = "admin" | "manager" | "viewer";
++
++export interface AuthUser {
++  id: string;
++  email: string;
++  name: string;
++  role: UserRole;
++  avatarUrl?: string;
++}
++
++interface AuthContextValue {
++  user: AuthUser | null;
++  session: Session | null;
++  loading: boolean;
++  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
++  signOut: () => Promise<void>;
++}
++
++const AuthContext = createContext<AuthContextValue | null>(null);
++
++function deriveRole(email: string): UserRole {
++  // Simple role derivation — in prod this would come from Supabase user_metadata or a roles table
++  if (email.includes("+admin@") || email.startsWith("admin.")) return "admin";
++  if (email.includes("+manager@") || email.startsWith("manager.")) return "manager";
++  // Acorn Activations org domain → default manager
++  if (email.endsWith("@acornactivations.co.za")) return "manager";
++  return "viewer";
++}
++
++export function AuthProvider({ children }: { children: ReactNode }) {
++  const [session, setSession] = useState<Session | null>(null);
++  const [user, setUser] = useState<AuthUser | null>(null);
++  const [loading, setLoading] = useState(true);
++
++  function buildUser(supaUser: User): AuthUser {
++    const meta = supaUser.user_metadata ?? {};
++    const email = supaUser.email ?? "";
++    const role: UserRole = (meta.role as UserRole) ?? deriveRole(email);
++    return {
++      id: supaUser.id,
++      email,
++      name: meta.full_name ?? meta.name ?? email.split("@")[0],
++      role,
++      avatarUrl: meta.avatar_url,
++    };
++  }
++
++  useEffect(() => {
++    supabase.auth.getSession().then(({ data }) => {
++      setSession(data.session);
++      setUser(data.session?.user ? buildUser(data.session.user) : null);
++      setLoading(false);
++    });
++
++    const { data: listener } = supabase.auth.onAuthStateChange((_ev, s) => {
++      setSession(s);
++      setUser(s?.user ? buildUser(s.user) : null);
++    });
++    return () => listener.subscription.unsubscribe();
++  }, []);
++
++  async function signIn(email: string, password: string) {
++    const { error } = await supabase.auth.signInWithPassword({ email, password });
++    return { error: error?.message ?? null };
++  }
++
++  async function signOut() {
++    await supabase.auth.signOut();
++  }
++
++  return (
++    <AuthContext.Provider value={{ user, session, loading, signIn, signOut }}>
++      {children}
++    </AuthContext.Provider>
++  );
++}
++
++export function useAuth() {
++  const ctx = useContext(AuthContext);
++  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
++  return ctx;
++}
++
++export function useRole() {
++  const { user } = useAuth();
++  return {
++    role: user?.role ?? "viewer",
++    isAdmin: user?.role === "admin",
++    isManager: user?.role === "admin" || user?.role === "manager",
++    isViewer: user?.role === "viewer",
++  };
++}
+diff --git a/src/contexts/ThemeContext.tsx b/src/contexts/ThemeContext.tsx
+new file mode 100644
+index 0000000..da5eaed
+--- /dev/null
++++ b/src/contexts/ThemeContext.tsx
+@@ -0,0 +1,40 @@
++import { createContext, useContext, useEffect, useState, ReactNode } from "react";
++
++type Theme = "dark" | "light";
++
++interface ThemeContextValue {
++  theme: Theme;
++  toggleTheme: () => void;
++}
++
++const ThemeContext = createContext<ThemeContextValue | null>(null);
++
++export function ThemeProvider({ children }: { children: ReactNode }) {
++  const [theme, setTheme] = useState<Theme>(() => {
++    if (typeof window === "undefined") return "dark";
++    return (localStorage.getItem("acorn-theme") as Theme) ?? "dark";
++  });
++
++  useEffect(() => {
++    const root = document.documentElement;
++    root.classList.remove("dark", "light");
++    root.classList.add(theme);
++    localStorage.setItem("acorn-theme", theme);
++  }, [theme]);
++
++  function toggleTheme() {
++    setTheme((t) => (t === "dark" ? "light" : "dark"));
++  }
++
++  return (
++    <ThemeContext.Provider value={{ theme, toggleTheme }}>
++      {children}
++    </ThemeContext.Provider>
++  );
++}
++
++export function useTheme() {
++  const ctx = useContext(ThemeContext);
++  if (!ctx) throw new Error("useTheme must be used within ThemeProvider");
++  return ctx;
++}
+diff --git a/src/hooks/useAuditLog.ts b/src/hooks/useAuditLog.ts
+new file mode 100644
+index 0000000..849cbee
+--- /dev/null
++++ b/src/hooks/useAuditLog.ts
+@@ -0,0 +1,46 @@
++import { useState, useCallback } from "react";
++
++export interface AuditEntry {
++  id: string;
++  action: string;
++  actor: string;
++  actorRole: string;
++  payload: Record<string, unknown>;
++  timestamp: string;
++}
++
++// In-memory store for the session — in prod, write to Supabase audit_log table
++const _log: AuditEntry[] = [];
++
++let _actor = "system";
++let _actorRole = "viewer";
++
++export function setAuditActor(name: string, role: string) {
++  _actor = name;
++  _actorRole = role;
++}
++
++export function appendAuditEntry(action: string, payload: Record<string, unknown> = {}) {
++  const entry: AuditEntry = {
++    id: crypto.randomUUID(),
++    action,
++    actor: _actor,
++    actorRole: _actorRole,
++    payload,
++    timestamp: new Date().toISOString(),
++  };
++  _log.unshift(entry); // newest first
++  return entry;
++}
++
++export function getAuditLog(): AuditEntry[] {
++  return [..._log];
++}
++
++export function useAuditLog() {
++  const logAction = useCallback((action: string, payload: Record<string, unknown> = {}) => {
++    appendAuditEntry(action, payload);
++  }, []);
++
++  return { logAction };
++}
+diff --git a/src/routes/__root.tsx b/src/routes/__root.tsx
+index 41dd298..542c00d 100644
+--- a/src/routes/__root.tsx
++++ b/src/routes/__root.tsx
+@@ -1,6 +1,9 @@
+ import { Outlet, Link, createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
+ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+ import { Toaster } from "@/components/ui/sonner";
++import { AuthProvider, useAuth } from "@/contexts/AuthContext";
++import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
++import { SignInPage } from "@/components/SignInPage";
+ 
+ import appCss from "../styles.css?url";
+ 
+@@ -43,7 +46,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
+ 
+ function RootShell({ children }: { children: React.ReactNode }) {
+   return (
+-    <html lang="en" className="dark">
++    <html lang="en">
+       <head>
+         <HeadContent />
+       </head>
+@@ -55,12 +58,39 @@ function RootShell({ children }: { children: React.ReactNode }) {
+   );
+ }
+ 
++function AuthGate({ children }: { children: React.ReactNode }) {
++  const { user, loading } = useAuth();
++
++  if (loading) {
++    return (
++      <div className="flex min-h-screen items-center justify-center bg-background">
++        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
++      </div>
++    );
++  }
++
++  if (!user) return <SignInPage />;
++
++  return <>{children}</>;
++}
++
++function ThemedToaster() {
++  const { theme } = useTheme();
++  return <Toaster richColors theme={theme} position="top-right" />;
++}
++
+ function RootComponent() {
+   const { queryClient } = Route.useRouteContext();
+   return (
+     <QueryClientProvider client={queryClient}>
+-      <Outlet />
+-      <Toaster richColors theme="dark" position="top-right" />
++      <ThemeProvider>
++        <AuthProvider>
++          <AuthGate>
++            <Outlet />
++          </AuthGate>
++          <ThemedToaster />
++        </AuthProvider>
++      </ThemeProvider>
+     </QueryClientProvider>
+   );
+ }
+diff --git a/src/routes/project.$id.tsx b/src/routes/project.$id.tsx
+index 742f13e..87d5be1 100644
+--- a/src/routes/project.$id.tsx
++++ b/src/routes/project.$id.tsx
+@@ -14,6 +14,9 @@ import { GanttTab } from "@/components/projectTabs/GanttTab";
+ import { RisksTab } from "@/components/projectTabs/RisksTab";
+ import { MilestonesTab } from "@/components/projectTabs/MilestonesTab";
+ import { TeamTab } from "@/components/projectTabs/TeamTab";
++import { MarketingTab } from "@/components/projectTabs/MarketingTab";
++import { AIBudgetTab } from "@/components/projectTabs/AIBudgetTab";
++import { AuditTrailTab } from "@/components/projectTabs/AuditTrailTab";
+ 
+ export const Route = createFileRoute("/project/$id")({
+   component: ProjectDetailPage,
+@@ -94,6 +97,9 @@ function ProjectDetailPage() {
+             <TabsTrigger value="risks">Risks</TabsTrigger>
+             <TabsTrigger value="milestones">Milestones</TabsTrigger>
+             <TabsTrigger value="team">Team</TabsTrigger>
++            <TabsTrigger value="marketing">Marketing</TabsTrigger>
++            <TabsTrigger value="budget-ai">Budget AI</TabsTrigger>
++            <TabsTrigger value="audit">Audit Trail</TabsTrigger>
+           </TabsList>
+           <TabsContent value="overview"><OverviewTab project={project} /></TabsContent>
+           <TabsContent value="tasks"><TasksTab projectId={project.id} /></TabsContent>
+@@ -101,6 +107,15 @@ function ProjectDetailPage() {
+           <TabsContent value="risks"><RisksTab projectId={project.id} /></TabsContent>
+           <TabsContent value="milestones"><MilestonesTab projectId={project.id} /></TabsContent>
+           <TabsContent value="team"><TeamTab projectId={project.id} /></TabsContent>
++          <TabsContent value="marketing">
++            <MarketingTab projectId={project.id} projectName={project.name} />
++          </TabsContent>
++          <TabsContent value="budget-ai">
++            <AIBudgetTab project={project} />
++          </TabsContent>
++          <TabsContent value="audit">
++            <AuditTrailTab />
++          </TabsContent>
+         </Tabs>
+       </div>
+     </AppShell>
+diff --git a/src/styles.css b/src/styles.css
+index aa8fab3..acf756e 100644
+--- a/src/styles.css
++++ b/src/styles.css
+@@ -51,66 +51,50 @@
+   --color-milestone: var(--milestone);
+ }
+ 
+-/*
+- * Acorn Activations design tokens (dark theme — no light mode).
+- * Brand:
+- *   bg          #0F1A2E  → dark navy
+- *   primary     #00B4D8  → cyan
+- *   secondary   #F4A300  → amber
+- *   text        #F0F4F8  → off-white
+- *   card        #1A2E44
+- *   danger      #C0392B
+- *   success     #217346
+- */
+-
+-:root {
++/* ============================================================
++   DARK MODE (default)
++   Brand: navy bg, cyan primary, amber secondary
++   ============================================================ */
++:root,
++html.dark {
++  color-scheme: dark;
+   --radius: 0.625rem;
+ 
+-  /* Surfaces */
+-  --background: oklch(0.207 0.043 254.5);          /* #0F1A2E */
+-  --foreground: oklch(0.961 0.008 247);            /* #F0F4F8 */
+-  --card: oklch(0.272 0.043 254);                  /* #1A2E44 */
++  --background: oklch(0.207 0.043 254.5);
++  --foreground: oklch(0.961 0.008 247);
++  --card: oklch(0.272 0.043 254);
+   --card-foreground: oklch(0.961 0.008 247);
+   --popover: oklch(0.272 0.043 254);
+   --popover-foreground: oklch(0.961 0.008 247);
+ 
+-  /* Primary — cyan */
+-  --primary: oklch(0.728 0.13 220);                /* #00B4D8 */
++  --primary: oklch(0.728 0.13 220);
+   --primary-foreground: oklch(0.18 0.04 254);
+ 
+-  /* Secondary — amber */
+-  --secondary: oklch(0.78 0.155 75);               /* #F4A300 */
++  --secondary: oklch(0.78 0.155 75);
+   --secondary-foreground: oklch(0.18 0.04 254);
+ 
+-  /* Muted / accent */
+   --muted: oklch(0.32 0.04 254);
+   --muted-foreground: oklch(0.72 0.025 250);
+   --accent: oklch(0.36 0.045 254);
+   --accent-foreground: oklch(0.961 0.008 247);
+ 
+-  /* Status */
+-  --destructive: oklch(0.575 0.18 28);             /* #C0392B */
++  --destructive: oklch(0.575 0.18 28);
+   --destructive-foreground: oklch(0.98 0.01 250);
+-  --success: oklch(0.5 0.12 150);                  /* #217346 */
++  --success: oklch(0.5 0.12 150);
+   --success-foreground: oklch(0.98 0.01 250);
+-  --warning: oklch(0.78 0.155 75);                 /* amber */
++  --warning: oklch(0.78 0.155 75);
+   --warning-foreground: oklch(0.18 0.04 254);
+   --info: oklch(0.728 0.13 220);
+   --info-foreground: oklch(0.18 0.04 254);
+ 
+-  /* Borders / inputs */
+   --border: oklch(0.36 0.04 254);
+   --input: oklch(0.32 0.04 254);
+   --ring: oklch(0.728 0.13 220);
+ 
+-  /* Table stripe */
+   --row-stripe: oklch(0.245 0.04 254);
+-
+-  /* Gantt */
+   --cp: oklch(0.575 0.18 28);
+   --milestone: oklch(0.78 0.155 75);
+ 
+-  /* Sidebar */
+   --sidebar: oklch(0.18 0.04 254);
+   --sidebar-foreground: oklch(0.92 0.012 247);
+   --sidebar-primary: oklch(0.728 0.13 220);
+@@ -121,9 +105,56 @@
+   --sidebar-ring: oklch(0.728 0.13 220);
+ }
+ 
+-/* Force dark — no light mode toggle */
+-html {
+-  color-scheme: dark;
++/* ============================================================
++   LIGHT MODE
++   Clean white with cyan primary, same amber secondary
++   ============================================================ */
++html.light {
++  color-scheme: light;
++
++  --background: oklch(0.98 0.005 247);
++  --foreground: oklch(0.18 0.04 254);
++  --card: oklch(1 0 0);
++  --card-foreground: oklch(0.18 0.04 254);
++  --popover: oklch(1 0 0);
++  --popover-foreground: oklch(0.18 0.04 254);
++
++  --primary: oklch(0.62 0.13 220);
++  --primary-foreground: oklch(0.98 0.005 247);
++
++  --secondary: oklch(0.72 0.155 75);
++  --secondary-foreground: oklch(0.98 0.005 247);
++
++  --muted: oklch(0.93 0.01 247);
++  --muted-foreground: oklch(0.48 0.03 254);
++  --accent: oklch(0.93 0.015 220);
++  --accent-foreground: oklch(0.18 0.04 254);
++
++  --destructive: oklch(0.52 0.18 28);
++  --destructive-foreground: oklch(0.98 0.005 247);
++  --success: oklch(0.46 0.12 150);
++  --success-foreground: oklch(0.98 0.005 247);
++  --warning: oklch(0.72 0.155 75);
++  --warning-foreground: oklch(0.98 0.005 247);
++  --info: oklch(0.62 0.13 220);
++  --info-foreground: oklch(0.98 0.005 247);
++
++  --border: oklch(0.88 0.012 247);
++  --input: oklch(0.92 0.008 247);
++  --ring: oklch(0.62 0.13 220);
++
++  --row-stripe: oklch(0.96 0.005 247);
++  --cp: oklch(0.52 0.18 28);
++  --milestone: oklch(0.72 0.155 75);
++
++  --sidebar: oklch(0.96 0.008 247);
++  --sidebar-foreground: oklch(0.18 0.04 254);
++  --sidebar-primary: oklch(0.62 0.13 220);
++  --sidebar-primary-foreground: oklch(0.98 0.005 247);
++  --sidebar-accent: oklch(0.9 0.015 220);
++  --sidebar-accent-foreground: oklch(0.18 0.04 254);
++  --sidebar-border: oklch(0.88 0.012 247);
++  --sidebar-ring: oklch(0.62 0.13 220);
+ }
+ 
+ @layer base {
+@@ -137,7 +168,6 @@ html {
+   }
+ }
+ 
+-/* Striped tables utility */
+ @utility table-striped {
+   & tbody tr:nth-child(odd) {
+     background-color: var(--color-row-stripe);
+-- 
+2.43.0
+

@@ -14,6 +14,9 @@ import { GanttTab } from "@/components/projectTabs/GanttTab";
 import { RisksTab } from "@/components/projectTabs/RisksTab";
 import { MilestonesTab } from "@/components/projectTabs/MilestonesTab";
 import { TeamTab } from "@/components/projectTabs/TeamTab";
+import { MarketingTab } from "@/components/projectTabs/MarketingTab";
+import { AIBudgetTab } from "@/components/projectTabs/AIBudgetTab";
+import { AuditTrailTab } from "@/components/projectTabs/AuditTrailTab";
 
 export const Route = createFileRoute("/project/$id")({
   component: ProjectDetailPage,
@@ -94,6 +97,9 @@ function ProjectDetailPage() {
             <TabsTrigger value="risks">Risks</TabsTrigger>
             <TabsTrigger value="milestones">Milestones</TabsTrigger>
             <TabsTrigger value="team">Team</TabsTrigger>
+            <TabsTrigger value="marketing">Marketing</TabsTrigger>
+            <TabsTrigger value="budget-ai">Budget AI</TabsTrigger>
+            <TabsTrigger value="audit">Audit Trail</TabsTrigger>
           </TabsList>
           <TabsContent value="overview"><OverviewTab project={project} /></TabsContent>
           <TabsContent value="tasks"><TasksTab projectId={project.id} /></TabsContent>
@@ -101,6 +107,15 @@ function ProjectDetailPage() {
           <TabsContent value="risks"><RisksTab projectId={project.id} /></TabsContent>
           <TabsContent value="milestones"><MilestonesTab projectId={project.id} /></TabsContent>
           <TabsContent value="team"><TeamTab projectId={project.id} /></TabsContent>
+          <TabsContent value="marketing">
+            <MarketingTab projectId={project.id} projectName={project.name} />
+          </TabsContent>
+          <TabsContent value="budget-ai">
+            <AIBudgetTab project={project} />
+          </TabsContent>
+          <TabsContent value="audit">
+            <AuditTrailTab />
+          </TabsContent>
         </Tabs>
       </div>
     </AppShell>
