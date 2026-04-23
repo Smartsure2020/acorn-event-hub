@@ -23,7 +23,7 @@ const mainItems = [
 ] as const;
 
 const adminItems = [
-  { title: "Admin Panel", url: "/admin", icon: ShieldCheck, exact: false },
+  { title: "Admin Panel", url: "/settings", icon: ShieldCheck, exact: false },
 ] as const;
 
 export function AppSidebar() {
