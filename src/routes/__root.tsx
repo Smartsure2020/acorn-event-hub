@@ -24,6 +24,14 @@ function parseAuthHash(): { accessToken: string; refreshToken: string; type: str
   return null;
 }
 
+// Supabase v2 PKCE flow delivers a ?code= query param instead of hash tokens.
+// Capture it at module load time on the /reset-password path.
+const initialCode = (() => {
+  if (typeof window === "undefined") return null;
+  if (window.location.pathname !== "/reset-password") return null;
+  return new URLSearchParams(window.location.search).get("code");
+})();
+
 const initialHashTokens = parseAuthHash();
 
 function NotFoundComponent() {
@@ -77,24 +85,33 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  // Start as NOT ready if we have hash tokens — we must set the session first
-  const [sessionReady, setSessionReady] = useState(!initialHashTokens);
-  const [flowType, setFlowType] = useState<string | null>(initialHashTokens?.type ?? null);
+  // Start as NOT ready if we have hash tokens or a PKCE code — we must set the session first
+  const [sessionReady, setSessionReady] = useState(!initialHashTokens && !initialCode);
+  const [flowType, setFlowType] = useState<string | null>(
+    initialHashTokens?.type ?? (initialCode ? "recovery" : null)
+  );
 
   useEffect(() => {
-    if (!initialHashTokens) return;
-
-    // Set the session from hash tokens BEFORE AuthProvider's getSession() fires
-    supabase.auth.setSession({
-      access_token: initialHashTokens.accessToken,
-      refresh_token: initialHashTokens.refreshToken,
-    }).then(({ error }) => {
-      if (!error) {
-        // Clean the ugly token hash from the browser URL
-        window.history.replaceState(null, "", window.location.pathname);
-      }
-      setSessionReady(true);
-    });
+    if (initialHashTokens) {
+      // Implicit flow: set the session from hash tokens BEFORE AuthProvider's getSession() fires
+      supabase.auth.setSession({
+        access_token: initialHashTokens.accessToken,
+        refresh_token: initialHashTokens.refreshToken,
+      }).then(({ error }) => {
+        if (!error) {
+          window.history.replaceState(null, "", window.location.pathname);
+        }
+        setSessionReady(true);
+      });
+    } else if (initialCode) {
+      // PKCE flow: exchange the code for a session
+      supabase.auth.exchangeCodeForSession(initialCode).then(({ error }) => {
+        if (!error) {
+          window.history.replaceState(null, "", window.location.pathname);
+        }
+        setSessionReady(true);
+      });
+    }
   }, []);
 
   // Show spinner while auth is loading or while we're setting the session
