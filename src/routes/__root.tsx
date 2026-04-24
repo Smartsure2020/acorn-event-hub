@@ -9,7 +9,9 @@ import { supabase } from "@/integrations/supabase/client";
 
 import appCss from "../styles.css?url";
 
-// Parse the URL hash immediately — before any React renders
+// Parse the URL hash IMMEDIATELY at module load time — before any React renders.
+// This is the fix for the race condition: we capture tokens before AuthProvider
+// calls getSession() and wins the race.
 function parseAuthHash(): { accessToken: string; refreshToken: string; type: string } | null {
   if (typeof window === "undefined") return null;
   const hash = window.location.hash;
@@ -46,8 +48,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Acorn Activations — Field Activation PM" },
+      { title: "Acorn Activations" },
       { name: "description", content: "Project management for on-ground field activations and sponsorship events." },
+      { property: "og:title", content: "Acorn Activations" },
+      { name: "twitter:title", content: "Acorn Activations" },
+      { property: "og:description", content: "Project management for on-ground field activations and sponsorship events." },
+      { name: "twitter:description", content: "Project management for on-ground field activations and sponsorship events." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/d1ac33bf-bdc8-4f5e-b676-8a61ca246055" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/d1ac33bf-bdc8-4f5e-b676-8a61ca246055" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { property: "og:type", content: "website" },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
   }),
@@ -67,23 +77,27 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  // Start as NOT ready if we have hash tokens — we must set the session first
   const [sessionReady, setSessionReady] = useState(!initialHashTokens);
   const [flowType, setFlowType] = useState<string | null>(initialHashTokens?.type ?? null);
 
   useEffect(() => {
     if (!initialHashTokens) return;
 
+    // Set the session from hash tokens BEFORE AuthProvider's getSession() fires
     supabase.auth.setSession({
       access_token: initialHashTokens.accessToken,
       refresh_token: initialHashTokens.refreshToken,
     }).then(({ error }) => {
       if (!error) {
+        // Clean the ugly token hash from the browser URL
         window.history.replaceState(null, "", window.location.pathname);
       }
       setSessionReady(true);
     });
   }, []);
 
+  // Show spinner while auth is loading or while we're setting the session
   if (loading || !sessionReady) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -92,10 +106,14 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Password reset or invite — show set-password form
   if (flowType === "recovery" || flowType === "invite") {
     return <SetPasswordPage onDone={() => setFlowType(null)} />;
   }
 
+  // Not logged in — show sign-in page
+  // (forgot-password and reset-password routes are handled by Lovable's routes
+  //  which render outside this gate via their own route components)
   if (!user) return <SignInPage />;
 
   return <>{children}</>;
