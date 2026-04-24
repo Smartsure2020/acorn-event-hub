@@ -1,6 +1,7 @@
 import { Outlet, Link, createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
 import { SignInPage } from "@/components/SignInPage";
@@ -25,10 +26,10 @@ function parseAuthHash(): { accessToken: string; refreshToken: string; type: str
 }
 
 // Supabase v2 PKCE flow delivers a ?code= query param instead of hash tokens.
-// Capture it at module load time on the /reset-password path.
+// Capture it at module load time on any path — Supabase dashboard recovery links
+// redirect to the site URL (/) not /reset-password, so we can't restrict by path.
 const initialCode = (() => {
   if (typeof window === "undefined") return null;
-  if (window.location.pathname !== "/reset-password") return null;
   return new URLSearchParams(window.location.search).get("code");
 })();
 
@@ -98,7 +99,11 @@ function AuthGate({ children }: { children: React.ReactNode }) {
         access_token: initialHashTokens.accessToken,
         refresh_token: initialHashTokens.refreshToken,
       }).then(({ error }) => {
-        if (!error) {
+        if (error) {
+          // Token expired or invalid — don't show the password form with no session
+          setFlowType(null);
+          toast.error("This reset link has expired. Please request a new one.");
+        } else {
           window.history.replaceState(null, "", window.location.pathname);
         }
         setSessionReady(true);
@@ -106,7 +111,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     } else if (initialCode) {
       // PKCE flow: exchange the code for a session
       supabase.auth.exchangeCodeForSession(initialCode).then(({ error }) => {
-        if (!error) {
+        if (error) {
+          setFlowType(null);
+          toast.error("This reset link has expired. Please request a new one.");
+        } else {
           window.history.replaceState(null, "", window.location.pathname);
         }
         setSessionReady(true);
