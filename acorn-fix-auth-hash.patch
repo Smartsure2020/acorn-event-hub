@@ -1,0 +1,180 @@
+From 074298b67accd98c3c39c7a7b4f8ed10dbe3259c Mon Sep 17 00:00:00 2001
+From: Acorn Build <build@acorn>
+Date: Thu, 23 Apr 2026 20:06:36 +0000
+Subject: [PATCH] fix: handle Supabase recovery/invite hash tokens in root,
+ inline set-password UI
+
+---
+ src/routes/__root.tsx | 136 +++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 128 insertions(+), 8 deletions(-)
+
+diff --git a/src/routes/__root.tsx b/src/routes/__root.tsx
+index cfb4577..fbe1351 100644
+--- a/src/routes/__root.tsx
++++ b/src/routes/__root.tsx
+@@ -4,6 +4,8 @@ import { Toaster } from "@/components/ui/sonner";
+ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+ import { ThemeProvider, useTheme } from "@/contexts/ThemeContext";
+ import { SignInPage } from "@/components/SignInPage";
++import { useEffect, useState } from "react";
++import { supabase } from "@/integrations/supabase/client";
+ 
+ import appCss from "../styles.css?url";
+ 
+@@ -60,15 +62,38 @@ function RootShell({ children }: { children: React.ReactNode }) {
+ 
+ function AuthGate({ children }: { children: React.ReactNode }) {
+   const { user, loading } = useAuth();
++  const [hashProcessed, setHashProcessed] = useState(false);
++  const [hashType, setHashType] = useState<string | null>(null);
+ 
+-  // Let the accept-invite page through without a session —
+-  // Supabase puts the token in the URL hash on redirect
+-  const isInvitePath =
+-    typeof window !== "undefined" &&
+-    (window.location.pathname.startsWith("/accept-invite") ||
+-      window.location.hash.includes("type=invite"));
++  useEffect(() => {
++    // Parse the URL hash for Supabase auth tokens (recovery, invite, etc.)
++    if (typeof window === "undefined") { setHashProcessed(true); return; }
+ 
+-  if (loading) {
++    const hash = window.location.hash;
++    if (!hash) { setHashProcessed(true); return; }
++
++    const params = new URLSearchParams(hash.replace("#", ""));
++    const type = params.get("type");
++    const accessToken = params.get("access_token");
++    const refreshToken = params.get("refresh_token");
++
++    if (accessToken && refreshToken) {
++      setHashType(type);
++      // Let Supabase consume the tokens from the hash
++      supabase.auth.setSession({
++        access_token: accessToken,
++        refresh_token: refreshToken,
++      }).then(() => {
++        // Clear the hash from the URL cleanly
++        window.history.replaceState(null, "", window.location.pathname);
++        setHashProcessed(true);
++      });
++    } else {
++      setHashProcessed(true);
++    }
++  }, []);
++
++  if (loading || !hashProcessed) {
+     return (
+       <div className="flex min-h-screen items-center justify-center bg-background">
+         <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+@@ -76,11 +101,106 @@ function AuthGate({ children }: { children: React.ReactNode }) {
+     );
+   }
+ 
+-  if (!user && !isInvitePath) return <SignInPage />;
++  // Recovery = password reset flow → show the accept-invite/set-password page
++  if (hashType === "recovery" || hashType === "invite") {
++    // Dynamically render the set-password UI inline
++    return <SetPasswordPage />;
++  }
++
++  if (!user) return <SignInPage />;
+ 
+   return <>{children}</>;
+ }
+ 
++// Inline set-password component — handles both recovery and invite flows
++function SetPasswordPage() {
++  const [password, setPassword] = useState("");
++  const [confirm, setConfirm] = useState("");
++  const [loading, setLoading] = useState(false);
++  const [done, setDone] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++  const { user } = useAuth();
++
++  async function handleSubmit(e: React.FormEvent) {
++    e.preventDefault();
++    setError(null);
++    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
++    if (password !== confirm) { setError("Passwords do not match."); return; }
++
++    setLoading(true);
++    const { error: err } = await supabase.auth.updateUser({ password });
++    setLoading(false);
++
++    if (err) {
++      setError(err.message);
++    } else {
++      setDone(true);
++      setTimeout(() => { window.location.href = "/"; }, 1500);
++    }
++  }
++
++  return (
++    <div className="min-h-screen flex items-center justify-center bg-background px-4">
++      <div className="w-full max-w-md space-y-6">
++        <div className="text-center">
++          <h1 className="text-2xl font-bold text-foreground">Set your password</h1>
++          {user?.email && (
++            <p className="text-sm text-muted-foreground mt-1">for {user.email}</p>
++          )}
++        </div>
++
++        <div className="rounded-lg border border-border bg-card p-6 shadow-xl">
++          {done ? (
++            <div className="text-center py-4 space-y-2">
++              <p className="text-green-400 font-semibold">✓ Password set successfully!</p>
++              <p className="text-sm text-muted-foreground">Redirecting you now…</p>
++            </div>
++          ) : (
++            <form onSubmit={handleSubmit} className="space-y-4">
++              <div className="space-y-1.5">
++                <label className="text-sm font-medium">New password</label>
++                <input
++                  type="password"
++                  placeholder="Min. 8 characters"
++                  value={password}
++                  onChange={(e) => setPassword(e.target.value)}
++                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
++                  required
++                  autoComplete="new-password"
++                />
++              </div>
++              <div className="space-y-1.5">
++                <label className="text-sm font-medium">Confirm password</label>
++                <input
++                  type="password"
++                  placeholder="Repeat password"
++                  value={confirm}
++                  onChange={(e) => setConfirm(e.target.value)}
++                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
++                  required
++                  autoComplete="new-password"
++                />
++              </div>
++              {error && (
++                <div className="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2 text-sm text-destructive">
++                  {error}
++                </div>
++              )}
++              <button
++                type="submit"
++                disabled={loading}
++                className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
++              >
++                {loading ? "Saving…" : "Set password & sign in"}
++              </button>
++            </form>
++          )}
++        </div>
++      </div>
++    </div>
++  );
++}
++
+ function ThemedToaster() {
+   const { theme } = useTheme();
+   return <Toaster richColors theme={theme} position="top-right" />;
+-- 
+2.43.0
+
