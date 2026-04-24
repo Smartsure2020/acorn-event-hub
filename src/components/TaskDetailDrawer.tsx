@@ -124,7 +124,7 @@ export function TaskDetailDrawer({ task, open, onClose }: TaskDetailDrawerProps)
       createdAt: new Date().toISOString(),
     };
     addComment(comment);
-    logAction("task_comment_added", { taskId: task.id, taskName: task.name });
+    logAction("task_comment_added", { taskId: task!.id, taskName: task!.name });
     setNewComment("");
     toast.success("Comment added");
   }
@@ -141,7 +141,7 @@ export function TaskDetailDrawer({ task, open, onClose }: TaskDetailDrawerProps)
       url: URL.createObjectURL(f),
     }));
     addDocuments(newDocs);
-    logAction("task_document_uploaded", { taskId: task.id, files: files.map((f) => f.name) });
+    logAction("task_document_uploaded", { taskId: task!.id, files: files.map((f) => f.name) });
     toast.success(`${files.length} document${files.length > 1 ? "s" : ""} attached`);
     e.target.value = "";
   }
@@ -155,7 +155,7 @@ export function TaskDetailDrawer({ task, open, onClose }: TaskDetailDrawerProps)
       notes: signOffNotes.trim(),
     };
     setSignOff(record);
-    logAction("task_signed_off", { taskId: task.id, taskName: task.name, manager: user.name });
+    logAction("task_signed_off", { taskId: task!.id, taskName: task!.name, manager: user.name });
     setShowSignOffForm(false);
     setSignOffNotes("");
     toast.success("Task signed off successfully");
@@ -163,7 +163,7 @@ export function TaskDetailDrawer({ task, open, onClose }: TaskDetailDrawerProps)
 
   function handleRevokeSignOff() {
     setSignOff(null);
-    logAction("task_signed_off_revoked", { taskId: task.id, taskName: task.name });
+    logAction("task_signed_off_revoked", { taskId: task!.id, taskName: task!.name });
     toast.success("Sign-off revoked");
   }
 
