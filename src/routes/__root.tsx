@@ -78,6 +78,12 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       refresh_token: initialHashTokens.refreshToken,
     }).then(({ error }) => {
       if (!error) {
+        // For recovery flows, send the user to /reset-password.
+        // Use a full location replace so the router picks up the new path.
+        if (initialHashTokens.type === "recovery" && window.location.pathname !== "/reset-password") {
+          window.location.replace("/reset-password");
+          return;
+        }
         window.history.replaceState(null, "", window.location.pathname);
       }
       setSessionReady(true);
