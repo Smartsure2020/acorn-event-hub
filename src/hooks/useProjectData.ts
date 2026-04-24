@@ -224,6 +224,39 @@ export function useUpdateTaskStatus() {
   });
 }
 
+export type UpdateTaskInput = {
+  id: string;
+  project_id: string;
+  name: string;
+  phase: ProjectRow["phase"];
+  owner: string | null;
+  start_day: number;
+  duration_days: number;
+  priority: "High" | "Medium" | "Low";
+  critical_path: boolean;
+};
+
+export function useUpdateTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, project_id: _, ...rest }: UpdateTaskInput): Promise<TaskRow> => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .update(rest)
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as TaskRow;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["tasks", vars.project_id] });
+      toast.success("Task updated");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 // ---------- Milestones ----------
 
 export function useMilestones(projectId: string | undefined) {
@@ -239,6 +272,21 @@ export function useMilestones(projectId: string | undefined) {
       if (error) throw error;
       return (data ?? []) as MilestoneRow[];
     },
+  });
+}
+
+export function useUpdateMilestoneStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: MilestoneRow["status"]; project_id: string }) => {
+      const { error } = await supabase.from("milestones").update({ status }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["milestones", vars.project_id] });
+      toast.success(`Milestone marked as ${vars.status}`);
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 }
 

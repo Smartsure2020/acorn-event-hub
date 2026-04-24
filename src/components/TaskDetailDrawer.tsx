@@ -1,5 +1,8 @@
 import { useState, useRef } from "react";
-import { MessageSquare, Paperclip, CheckCircle2, Upload, X, Send, ShieldCheck, Clock } from "lucide-react";
+import {
+  MessageSquare, Paperclip, CheckCircle2, Upload, X,
+  Send, ShieldCheck, Clock, Pencil,
+} from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -7,50 +10,38 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TaskStatusBadge, PriorityBadge } from "@/components/StatusBadges";
 import type { TaskRow } from "@/hooks/useProjectData";
+import { useUpdateTask } from "@/hooks/useProjectData";
 import { useAuth, useRole } from "@/contexts/AuthContext";
 import { useAuditLog } from "@/hooks/useAuditLog";
+import { useTaskPersistence } from "@/hooks/useTaskPersistence";
+import type { TaskComment, TaskDocument, SignOffRecord } from "@/hooks/useTaskPersistence";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { PHASES } from "@/lib/templates";
 
-// ---- Types ----
-
-interface TaskComment {
-  id: string;
-  author: string;
-  role: string;
-  body: string;
-  createdAt: string;
-}
-
-interface TaskDocument {
-  id: string;
-  name: string;
-  size: string;
-  uploadedBy: string;
-  uploadedAt: string;
-  url?: string;
-}
-
-interface SignOffRecord {
-  signedBy: string;
-  role: string;
-  signedAt: string;
-  notes: string;
-}
+const OWNERS = ["PM", "Marketing", "Executor", "Client", "All", "Other"];
 
 interface TaskDetailDrawerProps {
   task: TaskRow | null;
   open: boolean;
   onClose: () => void;
 }
-
-// ---- Helpers ----
 
 function formatTime(iso: string) {
   try {
@@ -60,24 +51,68 @@ function formatTime(iso: string) {
   }
 }
 
-// ---- Component ----
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export function TaskDetailDrawer({ task, open, onClose }: TaskDetailDrawerProps) {
   const { user } = useAuth();
   const { isManager } = useRole();
   const { logAction } = useAuditLog();
+  const updateTask = useUpdateTask();
 
-  // Local state — in prod these would be persisted via Supabase
-  const [comments, setComments] = useState<TaskComment[]>([]);
-  const [documents, setDocuments] = useState<TaskDocument[]>([]);
-  const [signOff, setSignOff] = useState<SignOffRecord | null>(null);
+  const { comments, addComment, documents, addDocuments, removeDocument, signOff, setSignOff } =
+    useTaskPersistence(task?.id);
+
   const [newComment, setNewComment] = useState("");
   const [signOffNotes, setSignOffNotes] = useState("");
   const [showSignOffForm, setShowSignOffForm] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Edit form state — re-initialised from task prop
+  const [editForm, setEditForm] = useState<{
+    name: string;
+    phase: TaskRow["phase"];
+    owner: string;
+    start_day: string;
+    duration_days: string;
+    priority: TaskRow["priority"];
+    critical_path: boolean;
+  } | null>(null);
+
   if (!task) return null;
+
+  function openEdit() {
+    setEditForm({
+      name: task!.name,
+      phase: task!.phase,
+      owner: task!.owner ?? "",
+      start_day: String(task!.start_day),
+      duration_days: String(task!.duration_days),
+      priority: task!.priority,
+      critical_path: task!.critical_path,
+    });
+  }
+
+  async function submitEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editForm || !editForm.name.trim()) return;
+    await updateTask.mutateAsync({
+      id: task!.id,
+      project_id: task!.project_id,
+      name: editForm.name.trim(),
+      phase: editForm.phase,
+      owner: editForm.owner.trim() || null,
+      start_day: Math.max(1, Number(editForm.start_day) || 1),
+      duration_days: Math.max(1, Number(editForm.duration_days) || 1),
+      priority: editForm.priority,
+      critical_path: editForm.critical_path,
+    });
+    setEditForm(null);
+  }
 
   function handleAddComment() {
     if (!newComment.trim() || !user) return;
@@ -88,8 +123,8 @@ export function TaskDetailDrawer({ task, open, onClose }: TaskDetailDrawerProps)
       body: newComment.trim(),
       createdAt: new Date().toISOString(),
     };
-    setComments((prev) => [...prev, comment]);
-    logAction("task_comment_added", { taskId: task!.id, taskName: task!.name });
+    addComment(comment);
+    logAction("task_comment_added", { taskId: task.id, taskName: task.name });
     setNewComment("");
     toast.success("Comment added");
   }
@@ -97,19 +132,16 @@ export function TaskDetailDrawer({ task, open, onClose }: TaskDetailDrawerProps)
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (!files.length || !user) return;
-
     const newDocs: TaskDocument[] = files.map((f) => ({
       id: crypto.randomUUID(),
       name: f.name,
       size: formatBytes(f.size),
       uploadedBy: user.name,
       uploadedAt: new Date().toISOString(),
-      // In prod: upload to Supabase Storage and store the URL
       url: URL.createObjectURL(f),
     }));
-
-    setDocuments((prev) => [...prev, ...newDocs]);
-    logAction("task_document_uploaded", { taskId: task!.id, files: files.map((f) => f.name) });
+    addDocuments(newDocs);
+    logAction("task_document_uploaded", { taskId: task.id, files: files.map((f) => f.name) });
     toast.success(`${files.length} document${files.length > 1 ? "s" : ""} attached`);
     e.target.value = "";
   }
@@ -123,15 +155,16 @@ export function TaskDetailDrawer({ task, open, onClose }: TaskDetailDrawerProps)
       notes: signOffNotes.trim(),
     };
     setSignOff(record);
-    logAction("task_signed_off", { taskId: task!.id, taskName: task!.name, manager: user.name });
+    logAction("task_signed_off", { taskId: task.id, taskName: task.name, manager: user.name });
     setShowSignOffForm(false);
     setSignOffNotes("");
     toast.success("Task signed off successfully");
   }
 
-  function removeDocument(id: string) {
-    setDocuments((prev) => prev.filter((d) => d.id !== id));
-    logAction("task_document_removed", { taskId: task!.id });
+  function handleRevokeSignOff() {
+    setSignOff(null);
+    logAction("task_signed_off_revoked", { taskId: task.id, taskName: task.name });
+    toast.success("Sign-off revoked");
   }
 
   return (
@@ -167,6 +200,10 @@ export function TaskDetailDrawer({ task, open, onClose }: TaskDetailDrawerProps)
             <TabsTrigger value="signoff" className="flex-1 gap-1.5">
               <ShieldCheck className="h-3.5 w-3.5" />
               Sign-off
+            </TabsTrigger>
+            <TabsTrigger value="edit" className="flex-1 gap-1.5" onClick={openEdit}>
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
             </TabsTrigger>
           </TabsList>
 
@@ -243,16 +280,22 @@ export function TaskDetailDrawer({ task, open, onClose }: TaskDetailDrawerProps)
                 {documents.map((doc) => (
                   <div key={doc.id} className="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-3">
                     <div className="min-w-0">
-                      <a
-                        href={doc.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm font-medium text-primary hover:underline truncate block"
-                      >
-                        {doc.name}
-                      </a>
+                      {doc.url ? (
+                        <a
+                          href={doc.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-medium text-primary hover:underline truncate block"
+                        >
+                          {doc.name}
+                        </a>
+                      ) : (
+                        <span className="text-sm font-medium text-foreground/60 truncate block" title="Link expired — re-upload to access">
+                          {doc.name}
+                        </span>
+                      )}
                       <p className="text-xs text-muted-foreground">
-                        {doc.size} · Uploaded by {doc.uploadedBy} · {formatTime(doc.uploadedAt)}
+                        {doc.size} · {doc.uploadedBy} · {formatTime(doc.uploadedAt)}
                       </p>
                     </div>
                     <Button
@@ -285,7 +328,12 @@ export function TaskDetailDrawer({ task, open, onClose }: TaskDetailDrawerProps)
                   )}
                 </div>
                 {isManager && (
-                  <Button variant="outline" size="sm" className="mt-2 text-destructive border-destructive/30" onClick={() => setSignOff(null)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 text-destructive border-destructive/30"
+                    onClick={handleRevokeSignOff}
+                  >
                     Revoke sign-off
                   </Button>
                 )}
@@ -327,14 +375,111 @@ export function TaskDetailDrawer({ task, open, onClose }: TaskDetailDrawerProps)
               </div>
             )}
           </TabsContent>
+
+          {/* --- EDIT --- */}
+          <TabsContent value="edit" className="mt-4">
+            {editForm ? (
+              <form onSubmit={submitEdit} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-task-name">Task name</Label>
+                  <Input
+                    id="edit-task-name"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm((f) => f && { ...f, name: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Phase</Label>
+                    <Select
+                      value={editForm.phase}
+                      onValueChange={(v) => setEditForm((f) => f && { ...f, phase: v as TaskRow["phase"] })}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {PHASES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Owner</Label>
+                    <Select
+                      value={editForm.owner}
+                      onValueChange={(v) => setEditForm((f) => f && { ...f, owner: v })}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                      <SelectContent>
+                        {OWNERS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-start">Start day</Label>
+                    <Input
+                      id="edit-start"
+                      type="number"
+                      min={1}
+                      value={editForm.start_day}
+                      onChange={(e) => setEditForm((f) => f && { ...f, start_day: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-dur">Duration (days)</Label>
+                    <Input
+                      id="edit-dur"
+                      type="number"
+                      min={1}
+                      value={editForm.duration_days}
+                      onChange={(e) => setEditForm((f) => f && { ...f, duration_days: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Priority</Label>
+                    <Select
+                      value={editForm.priority}
+                      onValueChange={(v) => setEditForm((f) => f && { ...f, priority: v as TaskRow["priority"] })}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {(["High", "Medium", "Low"] as const).map((p) => (
+                          <SelectItem key={p} value={p}>{p}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="edit-cp"
+                    checked={editForm.critical_path}
+                    onCheckedChange={(v) => setEditForm((f) => f && { ...f, critical_path: !!v })}
+                  />
+                  <Label htmlFor="edit-cp" className="cursor-pointer font-normal">Critical path task</Label>
+                </div>
+
+                <div className="flex gap-2 pt-1">
+                  <Button type="submit" size="sm" disabled={updateTask.isPending}>
+                    {updateTask.isPending ? "Saving…" : "Save changes"}
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setEditForm(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <div className="py-8 text-center text-muted-foreground text-sm">
+                Click the <strong>Edit</strong> tab to edit this task.
+              </div>
+            )}
+          </TabsContent>
         </Tabs>
       </SheetContent>
     </Sheet>
   );
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

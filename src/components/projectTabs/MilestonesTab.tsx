@@ -1,12 +1,20 @@
-import { useMilestones, MilestoneRow } from "@/hooks/useProjectData";
+import { useMilestones, useUpdateMilestoneStatus, MilestoneRow } from "@/hooks/useProjectData";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { MilestoneStatusBadge } from "@/components/StatusBadges";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export function MilestonesTab({ projectId }: { projectId: string }) {
   const { data: milestones, isLoading } = useMilestones(projectId);
+  const updateStatus = useUpdateMilestoneStatus();
 
   if (isLoading) return <Skeleton className="mt-4 h-64 w-full" />;
 
@@ -15,7 +23,15 @@ export function MilestonesTab({ projectId }: { projectId: string }) {
       <Card>
         <CardContent className="p-0">
           <ul className="divide-y divide-border">
-            {(milestones ?? []).map((m) => <MilestoneItem key={m.id} m={m} />)}
+            {(milestones ?? []).map((m) => (
+              <MilestoneItem
+                key={m.id}
+                m={m}
+                onChangeStatus={(status) =>
+                  updateStatus.mutate({ id: m.id, status, project_id: projectId })
+                }
+              />
+            ))}
           </ul>
         </CardContent>
       </Card>
@@ -23,7 +39,13 @@ export function MilestonesTab({ projectId }: { projectId: string }) {
   );
 }
 
-function MilestoneItem({ m }: { m: MilestoneRow }) {
+function MilestoneItem({
+  m,
+  onChangeStatus,
+}: {
+  m: MilestoneRow;
+  onChangeStatus: (s: MilestoneRow["status"]) => void;
+}) {
   const dotColour =
     m.status === "Complete" ? "bg-success"
       : m.status === "At Risk" ? "bg-secondary"
@@ -41,11 +63,22 @@ function MilestoneItem({ m }: { m: MilestoneRow }) {
           {m.phase} • Target W{m.target_week ?? "—"} • Sign-off: {m.sign_off ?? "—"}
         </div>
       </div>
-      <div className="text-right text-xs text-muted-foreground">
+      <div className="text-right text-xs text-muted-foreground shrink-0">
         <div>Target: {formatDate(m.target_date)}</div>
         <div>Actual: {formatDate(m.actual_date)}</div>
       </div>
-      <MilestoneStatusBadge value={m.status} />
+      <div onClick={(e) => e.stopPropagation()}>
+        <Select value={m.status} onValueChange={(v) => onChangeStatus(v as MilestoneRow["status"])}>
+          <SelectTrigger className="h-8 w-[130px] border-transparent bg-transparent px-2 hover:bg-muted/50">
+            <MilestoneStatusBadge value={m.status} />
+          </SelectTrigger>
+          <SelectContent>
+            {(["Not Started", "Complete", "At Risk"] as const).map((s) => (
+              <SelectItem key={s} value={s}>{s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
     </li>
   );
 }
