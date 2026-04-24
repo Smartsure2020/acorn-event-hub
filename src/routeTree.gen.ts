@@ -11,7 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RisksRouteImport } from './routes/risks'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as MilestonesRouteImport } from './routes/milestones'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProjectIdRouteImport } from './routes/project.$id'
 
@@ -25,9 +27,19 @@ const RisksRoute = RisksRouteImport.update({
   path: '/risks',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MilestonesRoute = MilestonesRouteImport.update({
   id: '/milestones',
   path: '/milestones',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -43,14 +55,18 @@ const ProjectIdRoute = ProjectIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/milestones': typeof MilestonesRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/risks': typeof RisksRoute
   '/settings': typeof SettingsRoute
   '/project/$id': typeof ProjectIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/milestones': typeof MilestonesRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/risks': typeof RisksRoute
   '/settings': typeof SettingsRoute
   '/project/$id': typeof ProjectIdRoute
@@ -58,22 +74,48 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/milestones': typeof MilestonesRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/risks': typeof RisksRoute
   '/settings': typeof SettingsRoute
   '/project/$id': typeof ProjectIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/milestones' | '/risks' | '/settings' | '/project/$id'
+  fullPaths:
+    | '/'
+    | '/forgot-password'
+    | '/milestones'
+    | '/reset-password'
+    | '/risks'
+    | '/settings'
+    | '/project/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/milestones' | '/risks' | '/settings' | '/project/$id'
-  id: '__root__' | '/' | '/milestones' | '/risks' | '/settings' | '/project/$id'
+  to:
+    | '/'
+    | '/forgot-password'
+    | '/milestones'
+    | '/reset-password'
+    | '/risks'
+    | '/settings'
+    | '/project/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/forgot-password'
+    | '/milestones'
+    | '/reset-password'
+    | '/risks'
+    | '/settings'
+    | '/project/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   MilestonesRoute: typeof MilestonesRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   RisksRoute: typeof RisksRoute
   SettingsRoute: typeof SettingsRoute
   ProjectIdRoute: typeof ProjectIdRoute
@@ -95,11 +137,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RisksRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/milestones': {
       id: '/milestones'
       path: '/milestones'
       fullPath: '/milestones'
       preLoaderRoute: typeof MilestonesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -121,7 +177,9 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   MilestonesRoute: MilestonesRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   RisksRoute: RisksRoute,
   SettingsRoute: SettingsRoute,
   ProjectIdRoute: ProjectIdRoute,
