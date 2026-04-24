@@ -29,7 +29,31 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { RiskRatingBadge } from "@/components/StatusBadges";
-import { Plus } from "lucide-react";
+import { Plus, Download } from "lucide-react";
+
+function exportRisksCSV(risks: RiskRow[]) {
+  const headers = ["#", "Description", "Likelihood", "Impact", "Rating", "Mitigation", "Owner", "Status"];
+  const lines = risks.map((r) =>
+    [
+      r.risk_number,
+      `"${r.description.replace(/"/g, '""')}"`,
+      r.likelihood,
+      r.impact,
+      r.rating,
+      `"${(r.mitigation ?? "").replace(/"/g, '""')}"`,
+      r.owner ?? "",
+      r.status,
+    ].join(",")
+  );
+  const csv = [headers.join(","), ...lines].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `risk-register-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 const RISK_LEVELS = ["Low", "Medium", "High"] as const;
 
@@ -41,7 +65,17 @@ export function RisksTab({ projectId }: { projectId: string }) {
 
   return (
     <div className="mt-4 space-y-4">
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end gap-2">
+        {(risks ?? []).length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => exportRisksCSV(risks ?? [])}
+          >
+            <Download className="h-3.5 w-3.5" /> Export CSV
+          </Button>
+        )}
         <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setAddOpen(true)}>
           <Plus className="h-3.5 w-3.5" /> Add risk
         </Button>

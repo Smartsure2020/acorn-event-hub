@@ -31,8 +31,33 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PriorityBadge, TaskStatusBadge, CPBadge } from "@/components/StatusBadges";
 import { PHASES } from "@/lib/templates";
 import { dayToWeek } from "@/lib/format";
-import { Plus, ChevronRight } from "lucide-react";
+import { Plus, ChevronRight, Download } from "lucide-react";
 import { TaskDetailDrawer } from "@/components/TaskDetailDrawer";
+
+function exportTasksCSV(tasks: TaskRow[], projectName = "project") {
+  const headers = ["Code", "Task", "Phase", "Owner", "Start Day", "Duration (days)", "Priority", "Status", "Critical Path"];
+  const lines = tasks.map((t) =>
+    [
+      t.task_code,
+      `"${t.name.replace(/"/g, '""')}"`,
+      t.phase,
+      t.owner ?? "",
+      t.start_day,
+      t.duration_days,
+      t.priority,
+      t.status,
+      t.critical_path ? "Yes" : "No",
+    ].join(",")
+  );
+  const csv = [headers.join(","), ...lines].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${projectName}-tasks-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 const ALL = "__all";
 
@@ -82,6 +107,16 @@ export function TasksTab({ projectId }: { projectId: string }) {
           <FilterSelect label="Priority" value={priority} onValue={setPriority} options={["High", "Medium", "Low"]} />
           <FilterSelect label="Status" value={status} onValue={setStatus} options={["Not Started", "In Progress", "Complete", "Blocked"]} />
           <div className="flex-1" />
+          {filtered.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => exportTasksCSV(filtered)}
+            >
+              <Download className="h-3.5 w-3.5" /> Export CSV
+            </Button>
+          )}
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setAddOpen(true)}>
             <Plus className="h-3.5 w-3.5" /> Add task
           </Button>

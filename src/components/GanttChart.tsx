@@ -1,15 +1,28 @@
+import { useMemo } from "react";
 import { TaskRow } from "@/hooks/useProjectData";
 import { PHASES, Phase } from "@/lib/templates";
 import { Diamond } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const TOTAL_WEEKS = 12; // covers ~84 days; templates run to ~week 11
-const DAYS = TOTAL_WEEKS * 7;
+const MIN_WEEKS = 12;
+const MAX_WEEKS = 52;
 
 export function GanttChart({ tasks }: { tasks: TaskRow[] }) {
   if (!tasks.length) {
     return <p className="text-sm text-muted-foreground">No tasks yet.</p>;
   }
+
+  // Derive the timeline width from actual task extents
+  const totalWeeks = useMemo(() => {
+    const maxDay = tasks.reduce((acc, t) => {
+      const end = t.start_day + (t.is_milestone ? 0 : t.duration_days);
+      return Math.max(acc, end);
+    }, 1);
+    const weeksNeeded = Math.ceil(maxDay / 7) + 1; // +1 for breathing room
+    return Math.min(MAX_WEEKS, Math.max(MIN_WEEKS, weeksNeeded));
+  }, [tasks]);
+
+  const totalDays = totalWeeks * 7;
 
   const grouped = PHASES.map((phase) => ({
     phase,
@@ -18,7 +31,7 @@ export function GanttChart({ tasks }: { tasks: TaskRow[] }) {
 
   return (
     <div className="overflow-x-auto rounded-lg border border-border bg-card">
-      <div className="min-w-[900px]">
+      <div style={{ minWidth: `${Math.max(900, 260 + totalWeeks * 60)}px` }}>
         {/* Header */}
         <div className="grid grid-cols-[260px_1fr] border-b border-border bg-muted/30">
           <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -26,9 +39,9 @@ export function GanttChart({ tasks }: { tasks: TaskRow[] }) {
           </div>
           <div
             className="grid"
-            style={{ gridTemplateColumns: `repeat(${TOTAL_WEEKS}, minmax(0, 1fr))` }}
+            style={{ gridTemplateColumns: `repeat(${totalWeeks}, minmax(0, 1fr))` }}
           >
-            {Array.from({ length: TOTAL_WEEKS }).map((_, i) => (
+            {Array.from({ length: totalWeeks }).map((_, i) => (
               <div
                 key={i}
                 className="border-l border-border px-2 py-2 text-center text-xs font-medium text-muted-foreground"
@@ -44,7 +57,7 @@ export function GanttChart({ tasks }: { tasks: TaskRow[] }) {
           <div key={g.phase}>
             <PhaseHeader phase={g.phase} />
             {g.items.map((t) => (
-              <GanttRow key={t.id} task={t} />
+              <GanttRow key={t.id} task={t} totalDays={totalDays} totalWeeks={totalWeeks} />
             ))}
           </div>
         ))}
@@ -61,6 +74,7 @@ export function GanttChart({ tasks }: { tasks: TaskRow[] }) {
         <span className="flex items-center gap-1.5">
           <Diamond className="h-3.5 w-3.5 fill-secondary text-secondary" /> Milestone
         </span>
+        <span className="ml-auto tabular-nums">{totalWeeks}w timeline</span>
       </div>
     </div>
   );
@@ -77,13 +91,20 @@ function PhaseHeader({ phase }: { phase: Phase }) {
   );
 }
 
-function GanttRow({ task }: { task: TaskRow }) {
+function GanttRow({
+  task,
+  totalDays,
+  totalWeeks,
+}: {
+  task: TaskRow;
+  totalDays: number;
+  totalWeeks: number;
+}) {
   const start = task.start_day;
   const dur = Math.max(task.is_milestone ? 0 : task.duration_days, 0);
 
-  // map to percentages of total days
-  const leftPct = ((start - 1) / DAYS) * 100;
-  const widthPct = Math.max((dur / DAYS) * 100, dur === 0 ? 0 : 0.8);
+  const leftPct = ((start - 1) / totalDays) * 100;
+  const widthPct = Math.max((dur / totalDays) * 100, dur === 0 ? 0 : 0.8);
 
   return (
     <div className="grid grid-cols-[260px_1fr] border-b border-border last:border-b-0 hover:bg-muted/20">
@@ -93,9 +114,9 @@ function GanttRow({ task }: { task: TaskRow }) {
       </div>
       <div
         className="relative grid"
-        style={{ gridTemplateColumns: `repeat(${TOTAL_WEEKS}, minmax(0, 1fr))` }}
+        style={{ gridTemplateColumns: `repeat(${totalWeeks}, minmax(0, 1fr))` }}
       >
-        {Array.from({ length: TOTAL_WEEKS }).map((_, i) => (
+        {Array.from({ length: totalWeeks }).map((_, i) => (
           <div key={i} className="border-l border-border/40" />
         ))}
         {task.is_milestone ? (
