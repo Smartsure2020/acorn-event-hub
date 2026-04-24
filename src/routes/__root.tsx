@@ -9,20 +9,30 @@ import { supabase } from "@/integrations/supabase/client";
 
 import appCss from "../styles.css?url";
 
+// Parse the URL hash immediately — before any React renders
+function parseAuthHash(): { accessToken: string; refreshToken: string; type: string } | null {
+  if (typeof window === "undefined") return null;
+  const hash = window.location.hash;
+  if (!hash) return null;
+  const params = new URLSearchParams(hash.replace("#", ""));
+  const accessToken = params.get("access_token");
+  const refreshToken = params.get("refresh_token");
+  const type = params.get("type") ?? "";
+  if (accessToken && refreshToken) return { accessToken, refreshToken, type };
+  return null;
+}
+
+const initialHashTokens = parseAuthHash();
+
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
         <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist.
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">The page you're looking for doesn't exist.</p>
         <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
+          <Link to="/" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
             Go home
           </Link>
         </div>
@@ -36,16 +46,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Acorn Activations" },
+      { title: "Acorn Activations — Field Activation PM" },
       { name: "description", content: "Project management for on-ground field activations and sponsorship events." },
-      { property: "og:title", content: "Acorn Activations" },
-      { name: "twitter:title", content: "Acorn Activations" },
-      { property: "og:description", content: "Project management for on-ground field activations and sponsorship events." },
-      { name: "twitter:description", content: "Project management for on-ground field activations and sponsorship events." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/d1ac33bf-bdc8-4f5e-b676-8a61ca246055" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/d1ac33bf-bdc8-4f5e-b676-8a61ca246055" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { property: "og:type", content: "website" },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
   }),
@@ -57,48 +59,32 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        {children}
-        <Scripts />
-      </body>
+      <head><HeadContent /></head>
+      <body>{children}<Scripts /></body>
     </html>
   );
 }
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  const [hashProcessed, setHashProcessed] = useState(false);
-  const [hashType, setHashType] = useState<string | null>(null);
+  const [sessionReady, setSessionReady] = useState(!initialHashTokens);
+  const [flowType, setFlowType] = useState<string | null>(initialHashTokens?.type ?? null);
 
   useEffect(() => {
-    if (typeof window === "undefined") { setHashProcessed(true); return; }
+    if (!initialHashTokens) return;
 
-    const hash = window.location.hash;
-    if (!hash) { setHashProcessed(true); return; }
-
-    const params = new URLSearchParams(hash.replace("#", ""));
-    const type = params.get("type");
-    const accessToken = params.get("access_token");
-    const refreshToken = params.get("refresh_token");
-
-    if (accessToken && refreshToken) {
-      setHashType(type);
-      supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      }).then(() => {
+    supabase.auth.setSession({
+      access_token: initialHashTokens.accessToken,
+      refresh_token: initialHashTokens.refreshToken,
+    }).then(({ error }) => {
+      if (!error) {
         window.history.replaceState(null, "", window.location.pathname);
-        setHashProcessed(true);
-      });
-    } else {
-      setHashProcessed(true);
-    }
+      }
+      setSessionReady(true);
+    });
   }, []);
 
-  if (loading || !hashProcessed) {
+  if (loading || !sessionReady) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -106,8 +92,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (hashType === "recovery" || hashType === "invite") {
-    return <SetPasswordPage />;
+  if (flowType === "recovery" || flowType === "invite") {
+    return <SetPasswordPage onDone={() => setFlowType(null)} />;
   }
 
   if (!user) return <SignInPage />;
@@ -115,7 +101,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function SetPasswordPage() {
+function SetPasswordPage({ onDone }: { onDone: () => void }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
@@ -137,7 +123,7 @@ function SetPasswordPage() {
       setError(err.message);
     } else {
       setDone(true);
-      setTimeout(() => { window.location.href = "/"; }, 1500);
+      setTimeout(() => onDone(), 1500);
     }
   }
 
@@ -150,12 +136,11 @@ function SetPasswordPage() {
             <p className="text-sm text-muted-foreground mt-1">for {user.email}</p>
           )}
         </div>
-
         <div className="rounded-lg border border-border bg-card p-6 shadow-xl">
           {done ? (
             <div className="text-center py-4 space-y-2">
-              <p className="text-green-400 font-semibold">✓ Password set successfully!</p>
-              <p className="text-sm text-muted-foreground">Redirecting you now…</p>
+              <p className="text-green-400 font-semibold text-lg">✓ Password set!</p>
+              <p className="text-sm text-muted-foreground">Taking you to the dashboard…</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -168,6 +153,7 @@ function SetPasswordPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                   required
+                  autoFocus
                   autoComplete="new-password"
                 />
               </div>
