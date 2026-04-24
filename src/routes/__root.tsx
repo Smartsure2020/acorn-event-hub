@@ -92,8 +92,19 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (flowType === "recovery" || flowType === "invite") {
+  // For invite flows, force the inline set-password screen.
+  // For recovery flows, let the /reset-password route handle it
+  // (so the user lands on a proper, bookmarkable URL).
+  if (flowType === "invite") {
     return <SetPasswordPage onDone={() => setFlowType(null)} />;
+  }
+
+  // Public routes — render without requiring auth
+  if (typeof window !== "undefined") {
+    const path = window.location.pathname;
+    if (path === "/forgot-password" || path === "/reset-password") {
+      return <>{children}</>;
+    }
   }
 
   if (!user) return <SignInPage />;
