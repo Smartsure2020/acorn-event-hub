@@ -19,6 +19,10 @@ function createSupabaseClient() {
       storage: typeof window !== 'undefined' ? localStorage : undefined,
       persistSession: true,
       autoRefreshToken: true,
+      // Disable auto URL detection — __root.tsx AuthGate handles hash tokens and
+      // PKCE codes manually to control timing and show the correct UI before
+      // the SDK races to consume the one-time code first.
+      detectSessionInUrl: false,
     }
   });
 }
