@@ -128,10 +128,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     return <SetPasswordPage onDone={() => setFlowType(null)} />;
   }
 
-  // Not logged in — show sign-in page
-  // (forgot-password and reset-password routes are handled by Lovable's routes
-  //  which render outside this gate via their own route components)
-  if (!user) return <SignInPage />;
+  // Not logged in — show sign-in page, unless on a public auth route
+  const path = typeof window !== "undefined" ? window.location.pathname : "";
+  const isPublicAuthRoute = path === "/forgot-password" || path === "/reset-password";
+  if (!user && !isPublicAuthRoute) return <SignInPage />;
 
   return <>{children}</>;
 }
