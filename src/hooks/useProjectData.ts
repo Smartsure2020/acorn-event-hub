@@ -277,3 +277,181 @@ export function useTeam(projectId: string | undefined) {
     },
   });
 }
+
+// ---------- Mutations ----------
+
+export type NewTaskInput = {
+  project_id: string;
+  name: string;
+  phase: ProjectRow["phase"];
+  owner: string | null;
+  start_day: number;
+  duration_days: number;
+  priority: "High" | "Medium" | "Low";
+  critical_path: boolean;
+};
+
+export function useAddTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: NewTaskInput): Promise<TaskRow> => {
+      const { count } = await supabase
+        .from("tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("project_id", input.project_id);
+      const nextNum = (count ?? 0) + 1;
+      const taskCode = `T-${nextNum.toString().padStart(3, "0")}`;
+
+      const { data: last } = await supabase
+        .from("tasks")
+        .select("sort_order")
+        .eq("project_id", input.project_id)
+        .order("sort_order", { ascending: false })
+        .limit(1);
+      const nextSort = last?.length ? last[0].sort_order + 1 : 0;
+
+      const { data, error } = await supabase
+        .from("tasks")
+        .insert({
+          project_id: input.project_id,
+          task_code: taskCode,
+          name: input.name,
+          phase: input.phase,
+          owner: input.owner,
+          start_day: input.start_day,
+          duration_days: input.duration_days,
+          priority: input.priority,
+          critical_path: input.critical_path,
+          sort_order: nextSort,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data as TaskRow;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["tasks", vars.project_id] });
+      toast.success("Task added");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+function computeRiskRating(
+  likelihood: "Low" | "Medium" | "High",
+  impact: "Low" | "Medium" | "High"
+): RiskRow["rating"] {
+  const matrix: Record<string, RiskRow["rating"]> = {
+    "Low-Low": "LOW", "Low-Medium": "LOW", "Low-High": "MEDIUM",
+    "Medium-Low": "LOW", "Medium-Medium": "MEDIUM", "Medium-High": "HIGH",
+    "High-Low": "MEDIUM", "High-Medium": "HIGH", "High-High": "CRITICAL",
+  };
+  return matrix[`${likelihood}-${impact}`] ?? "MEDIUM";
+}
+
+export type NewRiskInput = {
+  project_id: string;
+  description: string;
+  likelihood: "Low" | "Medium" | "High";
+  impact: "Low" | "Medium" | "High";
+  mitigation: string | null;
+  owner: string | null;
+};
+
+export function useAddRisk() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: NewRiskInput): Promise<RiskRow> => {
+      const { count } = await supabase
+        .from("risks")
+        .select("id", { count: "exact", head: true })
+        .eq("project_id", input.project_id);
+      const risk_number = (count ?? 0) + 1;
+      const rating = computeRiskRating(input.likelihood, input.impact);
+
+      const { data, error } = await supabase
+        .from("risks")
+        .insert({
+          project_id: input.project_id,
+          risk_number,
+          description: input.description,
+          likelihood: input.likelihood,
+          impact: input.impact,
+          rating,
+          mitigation: input.mitigation,
+          owner: input.owner,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data as RiskRow;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["risks", vars.project_id] });
+      toast.success("Risk added");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export type NewTeamMemberInput = {
+  project_id: string;
+  name: string;
+  role: TeamMemberRow["role"];
+  contact: string | null;
+};
+
+export function useAddTeamMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: NewTeamMemberInput): Promise<TeamMemberRow> => {
+      const { data, error } = await supabase
+        .from("team_members")
+        .insert({ project_id: input.project_id, name: input.name, role: input.role, contact: input.contact })
+        .select()
+        .single();
+      if (error) throw error;
+      return data as TeamMemberRow;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["team", vars.project_id] });
+      toast.success("Team member added");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export type UpdateProjectInput = {
+  id: string;
+  name: string;
+  client: string | null;
+  type: ProjectRow["type"];
+  event_date: string | null;
+  pm: string | null;
+  budget_zar: number | null;
+  location: string | null;
+  notes: string | null;
+  status: ProjectRow["status"];
+};
+
+export function useUpdateProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...rest }: UpdateProjectInput): Promise<ProjectRow> => {
+      const { data, error } = await supabase
+        .from("projects")
+        .update(rest)
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as ProjectRow;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["project", vars.id] });
+      toast.success("Project updated");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}

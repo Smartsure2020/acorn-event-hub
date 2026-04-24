@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Sparkles, TrendingUp, TrendingDown, AlertTriangle, Send, RefreshCw } from "lucide-react";
+import { Sparkles, TrendingUp, TrendingDown, Send, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -77,13 +78,48 @@ export function AIBudgetTab({ project }: AIBudgetTabProps) {
   const [chatHistory, setChatHistory] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [followUp, setFollowUp] = useState("");
 
+  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY as string | undefined;
+
+  async function callAnthopic(
+    systemPrompt: string,
+    messages: { role: "user" | "assistant"; content: string }[],
+    maxTokens = 1000
+  ): Promise<string> {
+    if (!apiKey) {
+      throw new Error("VITE_ANTHROPIC_API_KEY is not set. Add it to your .env file.");
+    }
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as { error?: { message?: string } }).error?.message ?? `API error ${res.status}`);
+    }
+    const data = await res.json();
+    return (data.content as { type: string; text?: string }[])
+      ?.map((b) => b.text ?? "")
+      .join("") ?? "";
+  }
+
   async function fetchAdvice() {
     setLoading(true);
     setAdvice(null);
     setRawResponse("");
 
-    const systemPrompt = `You are a financial advisor specialising in South African events and field activations. 
-You analyse event budgets and provide practical, actionable advice. 
+    const systemPrompt = `You are a financial advisor specialising in South African events and field activations.
+You analyse event budgets and provide practical, actionable advice.
 Always respond with a valid JSON object (no markdown fences) matching this structure exactly:
 {
   "summary": "one paragraph summary",
@@ -108,19 +144,7 @@ Please analyse this event budget and advise whether to increase, decrease, maint
     setChatHistory(newHistory);
 
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: systemPrompt,
-          messages: newHistory,
-        }),
-      });
-
-      const data = await res.json();
-      const text = data.content?.map((b: { type: string; text?: string }) => b.text || "").join("") ?? "";
+      const text = await callAnthopic(systemPrompt, newHistory);
       setRawResponse(text);
 
       try {
@@ -128,11 +152,12 @@ Please analyse this event budget and advise whether to increase, decrease, maint
         setAdvice(parsed);
         setChatHistory([...newHistory, { role: "assistant", content: text }]);
       } catch {
-        setAdvice(null);
+        toast.error("AI returned an unexpected format. Raw response is shown below.");
       }
     } catch (err) {
-      console.error(err);
-      setRawResponse("Failed to fetch AI advice. Please check your connection.");
+      const msg = err instanceof Error ? err.message : "Failed to fetch AI advice.";
+      toast.error(msg);
+      setRawResponse(msg);
     } finally {
       setLoading(false);
     }
@@ -150,21 +175,11 @@ Please analyse this event budget and advise whether to increase, decrease, maint
 Answer follow-up questions conversationally but concisely. Keep responses under 200 words.`;
 
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: systemPrompt,
-          messages: newHistory,
-        }),
-      });
-      const data = await res.json();
-      const text = data.content?.map((b: { type: string; text?: string }) => b.text || "").join("") ?? "";
+      const text = await callAnthopic(systemPrompt, newHistory, 500);
       setChatHistory([...newHistory, { role: "assistant", content: text }]);
     } catch (err) {
-      console.error(err);
+      const msg = err instanceof Error ? err.message : "Failed to send message.";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

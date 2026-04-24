@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 
 export interface AuditEntry {
   id: string;
@@ -9,8 +9,28 @@ export interface AuditEntry {
   timestamp: string;
 }
 
-// In-memory store for the session — in prod, write to Supabase audit_log table
-const _log: AuditEntry[] = [];
+const STORAGE_KEY = "acorn_audit_log";
+const MAX_ENTRIES = 1000;
+
+function loadFromStorage(): AuditEntry[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as AuditEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveToStorage(entries: AuditEntry[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries.slice(0, MAX_ENTRIES)));
+  } catch {
+    // localStorage quota exceeded or unavailable
+  }
+}
+
+// Module-level log — hydrated from localStorage on first import
+const _log: AuditEntry[] = loadFromStorage();
 
 let _actor = "system";
 let _actorRole = "viewer";
@@ -30,6 +50,7 @@ export function appendAuditEntry(action: string, payload: Record<string, unknown
     timestamp: new Date().toISOString(),
   };
   _log.unshift(entry); // newest first
+  saveToStorage(_log);
   return entry;
 }
 

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useTasks, useUpdateTaskStatus, TaskRow } from "@/hooks/useProjectData";
+import { useTasks, useUpdateTaskStatus, useAddTask, TaskRow } from "@/hooks/useProjectData";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -16,16 +16,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PriorityBadge, TaskStatusBadge, CPBadge } from "@/components/StatusBadges";
 import { PHASES } from "@/lib/templates";
 import { dayToWeek } from "@/lib/format";
 import { Plus, ChevronRight } from "lucide-react";
-import { toast } from "sonner";
 import { TaskDetailDrawer } from "@/components/TaskDetailDrawer";
 
 const ALL = "__all";
+
+const OWNERS = ["PM", "Marketing", "Executor", "Client", "All"];
 
 export function TasksTab({ projectId }: { projectId: string }) {
   const { data: tasks, isLoading } = useTasks(projectId);
@@ -36,6 +47,7 @@ export function TasksTab({ projectId }: { projectId: string }) {
   const [priority, setPriority] = useState<string>(ALL);
   const [status, setStatus] = useState<string>(ALL);
   const [selectedTask, setSelectedTask] = useState<TaskRow | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   const owners = useMemo(() => {
     const set = new Set<string>();
@@ -70,7 +82,7 @@ export function TasksTab({ projectId }: { projectId: string }) {
           <FilterSelect label="Priority" value={priority} onValue={setPriority} options={["High", "Medium", "Low"]} />
           <FilterSelect label="Status" value={status} onValue={setStatus} options={["Not Started", "In Progress", "Complete", "Blocked"]} />
           <div className="flex-1" />
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => toast.info("Add task — coming soon")}>
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setAddOpen(true)}>
             <Plus className="h-3.5 w-3.5" /> Add task
           </Button>
         </div>
@@ -122,7 +134,152 @@ export function TasksTab({ projectId }: { projectId: string }) {
         open={!!selectedTask}
         onClose={() => setSelectedTask(null)}
       />
+
+      <AddTaskDialog
+        projectId={projectId}
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        existingOwners={owners}
+      />
     </>
+  );
+}
+
+function AddTaskDialog({
+  projectId,
+  open,
+  onClose,
+  existingOwners,
+}: {
+  projectId: string;
+  open: boolean;
+  onClose: () => void;
+  existingOwners: string[];
+}) {
+  const addTask = useAddTask();
+  const [form, setForm] = useState({
+    name: "",
+    phase: "Initiation" as TaskRow["phase"],
+    owner: "",
+    start_day: "1",
+    duration_days: "1",
+    priority: "Medium" as TaskRow["priority"],
+    critical_path: false,
+  });
+
+  function update<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    await addTask.mutateAsync({
+      project_id: projectId,
+      name: form.name.trim(),
+      phase: form.phase,
+      owner: form.owner.trim() || null,
+      start_day: Math.max(1, Number(form.start_day) || 1),
+      duration_days: Math.max(1, Number(form.duration_days) || 1),
+      priority: form.priority,
+      critical_path: form.critical_path,
+    });
+    setForm({ name: "", phase: "Initiation", owner: "", start_day: "1", duration_days: "1", priority: "Medium", critical_path: false });
+    onClose();
+  }
+
+  const ownerOptions = Array.from(new Set([...OWNERS, ...existingOwners])).sort();
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add task</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4 py-1">
+          <div className="space-y-1.5">
+            <Label htmlFor="task-name">Task name *</Label>
+            <Input
+              id="task-name"
+              placeholder="e.g. Book venue"
+              value={form.name}
+              onChange={(e) => update("name", e.target.value)}
+              required
+              autoFocus
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Phase</Label>
+              <Select value={form.phase} onValueChange={(v) => update("phase", v as TaskRow["phase"])}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PHASES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Owner</Label>
+              <Select value={form.owner} onValueChange={(v) => update("owner", v)}>
+                <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
+                <SelectContent>
+                  {ownerOptions.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="start-day">Start day</Label>
+              <Input
+                id="start-day"
+                type="number"
+                min={1}
+                value={form.start_day}
+                onChange={(e) => update("start_day", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="duration">Duration (days)</Label>
+              <Input
+                id="duration"
+                type="number"
+                min={1}
+                value={form.duration_days}
+                onChange={(e) => update("duration_days", e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Priority</Label>
+              <Select value={form.priority} onValueChange={(v) => update("priority", v as TaskRow["priority"])}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(["High", "Medium", "Low"] as const).map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="critical-path"
+              checked={form.critical_path}
+              onCheckedChange={(v) => update("critical_path", !!v)}
+            />
+            <Label htmlFor="critical-path" className="cursor-pointer font-normal">Critical path task</Label>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={addTask.isPending}>
+              {addTask.isPending ? "Adding…" : "Add task"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
